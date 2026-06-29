@@ -366,84 +366,591 @@ ApplicationWindow {
     // Frameless Golden Bubble Overlay Drawer (Interactive quick controls)
     Window {
         id: bubbleOverlay
-        width: 250
-        height: 180
+        width: expanded ? 340 : 255
+        height: expanded ? 480 : 185
         visible: backend.bubbleEnabled
         flags: Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool
         color: "transparent"
-        x: window.x + window.width - 270
-        y: window.y + window.height - 240
+        x: window.x + window.width - width - 20
+        y: window.y + window.height - height - 20
+
+        // Custom properties for statistics and logs
+        property bool expanded: false
+        property int filesCreatedCount: 0
+        property int commandsExecutedCount: 0
+        property int smartCapturesCount: 0
+        property string activeFilter: "all"
+
+        Behavior on width { NumberAnimation { duration: 250; easing.type: Easing.OutQuad } }
+        Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutQuad } }
+
+        ListModel {
+            id: bubbleLogsModel
+        }
+
+        function refreshLogs() {
+            try {
+                var raw = backend.get_bubble_logs_json(activeFilter)
+                var arr = JSON.parse(raw)
+                bubbleLogsModel.clear()
+                for (var i = 0; i < arr.length; i++) {
+                    bubbleLogsModel.append(arr[i])
+                }
+            } catch(e) {
+                console.log("Error refreshing bubble logs: " + e)
+            }
+        }
+
+        onVisibleChanged: {
+            if (visible) {
+                updateStats()
+            }
+        }
+
+        onExpandedChanged: {
+            if (expanded) {
+                refreshLogs()
+            }
+        }
+
+        function updateStats() {
+            try {
+                var stats = JSON.parse(backend.get_bubble_stats())
+                filesCreatedCount = stats.files_count
+                commandsExecutedCount = stats.commands_count
+                smartCapturesCount = stats.captures_count
+                if (expanded) {
+                    refreshLogs()
+                }
+            } catch(e) {
+                console.log("Error updating bubble stats: " + e)
+            }
+        }
+
+        Component.onCompleted: {
+            updateStats()
+        }
+
+        Timer {
+            id: bubbleUpdateTimer
+            interval: 3000
+            running: bubbleOverlay.visible
+            repeat: true
+            onTriggered: {
+                bubbleOverlay.updateStats()
+            }
+        }
 
         Rectangle {
             anchors.fill: parent
-            color: "#E5A93B"
-            radius: 12
-            border.color: "#FFFFFF"
-            border.width: 2
-            opacity: dragArea.containsPress ? 0.9 : 0.85
+            color: "#E60D1127" // Translucent midnight blue glassmorphism
+            radius: 14
+            border.color: metallicGold
+            border.width: 1.5
 
-            MouseArea {
-                id: dragArea
+            // Outer glow effect
+            Rectangle {
                 anchors.fill: parent
-                drag.target: bubbleOverlay
-                
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 8
+                anchors.margins: -4
+                radius: 18
+                color: "transparent"
+                border.color: softGold
+                border.width: 1
+                opacity: 0.15
+            }
 
-                    RowLayout {
-                        Text {
-                            text: backend.appLanguage === "ar" ? "👑 فقاعة الاختصار الذهبية" : "👑 Golden Short Bubble"
-                            color: "#05070E"
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 8
+
+                // Header & Drag Area
+                RowLayout {
+                    Layout.fillWidth: true
+                    height: 32
+
+                    // Drag Area overlay
+                    MouseArea {
+                        id: headerDragArea
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        drag.target: bubbleOverlay
+                        drag.axis: Drag.XAndYAxis
+
+                        RowLayout {
+                            anchors.fill: parent
+                            spacing: 6
+                            Text {
+                                text: "👑"
+                                font.pixelSize: 14
+                            }
+                            Text {
+                                text: backend.appLanguage === "ar" ? "الفقاعة الذهبية Pro" : "Golden Bubble Pro"
+                                color: metallicGold
+                                font.bold: true
+                                font.pixelSize: 11
+                            }
+                        }
+                    }
+
+                    // Open Settings Tab
+                    Button {
+                        id: bubbleSettingsBtn
+                        implicitWidth: 24
+                        implicitHeight: 24
+                        background: Rectangle {
+                            color: bubbleSettingsBtn.hovered ? "#2D3748" : "transparent"
+                            radius: 4
+                        }
+                        contentItem: Text {
+                            text: "⚙️"
+                            font.pixelSize: 11
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onClicked: {
+                            mainStack.currentIndex = 11
+                            window.raise()
+                        }
+                    }
+
+                    // Expand / Collapse Toggle Button
+                    Button {
+                        id: bubbleExpandBtn
+                        implicitWidth: 24
+                        implicitHeight: 24
+                        background: Rectangle {
+                            color: bubbleExpandBtn.hovered ? "#2D3748" : "transparent"
+                            radius: 4
+                        }
+                        contentItem: Text {
+                            text: bubbleOverlay.expanded ? "▲" : "▼"
+                            color: metallicGold
                             font.bold: true
                             font.pixelSize: 11
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
                         }
-                        Spacer { Layout.fillWidth: true }
-                        Button {
-                            text: "❌"
-                            flat: true
-                            implicitWidth: 20
-                            implicitHeight: 20
-                            onClicked: bubbleOverlay.visible = false
+                        onClicked: {
+                            bubbleOverlay.expanded = !bubbleOverlay.expanded
                         }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 1
-                        color: "#05070E"
-                    }
-
+                    // Hide/Close Bubble Overlay
                     Button {
-                        text: backend.appLanguage === "ar" ? "⚡ لصق ومعالجة الحزمة" : "⚡ Paste & Extract Pack"
+                        id: bubbleCloseBtn
+                        implicitWidth: 24
+                        implicitHeight: 24
+                        background: Rectangle {
+                            color: bubbleCloseBtn.hovered ? "#21050E" : "transparent"
+                            radius: 4
+                        }
+                        contentItem: Text {
+                            text: "❌"
+                            color: "#EF4444"
+                            font.pixelSize: 9
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onClicked: {
+                            bubbleOverlay.visible = false
+                        }
+                    }
+                }
+
+                // Decorative Divider
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: borderSlate
+                }
+
+                // Primary Quick Action Buttons (Always Visible)
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    // Paste & Process Package
+                    Button {
+                        id: bubblePasteBtn
                         Layout.fillWidth: true
+                        Layout.preferredHeight: 34
+                        background: Rectangle {
+                            color: bubblePasteBtn.hovered ? "#1E295D" : cardSlateBg
+                            border.color: borderSlate
+                            radius: 8
+                        }
+                        contentItem: Text {
+                            text: backend.appLanguage === "ar" ? "⚡ لصق الحزمة" : "⚡ Paste Pack"
+                            color: textSilver
+                            font.bold: true
+                            font.pixelSize: 10
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
                         onClicked: {
                             var clip = backend.get_clipboard_text()
                             if (clip) {
                                 codeTextArea.text = clip
                                 backend.process_text_directives_for_project(clip, projectSelector.currentText)
+                                bubbleOverlay.updateStats()
                             }
                         }
                     }
 
+                    // Smart Visual Capture
                     Button {
-                        text: backend.appLanguage === "ar" ? "🧠 معالجة بصرية فورية" : "🧠 Quick Smart Capture"
+                        id: bubbleCaptureBtn
                         Layout.fillWidth: true
+                        Layout.preferredHeight: 34
+                        background: Rectangle {
+                            color: bubbleCaptureBtn.hovered ? "#1E295D" : cardSlateBg
+                            border.color: borderSlate
+                            radius: 8
+                        }
+                        contentItem: Text {
+                            text: backend.appLanguage === "ar" ? "🧠 التقاط ذكي" : "🧠 Smart Cap"
+                            color: textSilver
+                            font.bold: true
+                            font.pixelSize: 10
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
                         onClicked: {
                             var clip = backend.get_clipboard_text()
                             if (clip) {
                                 backend.smart_capture_content_v2(clip, "space")
+                                bubbleOverlay.updateStats()
                             }
                         }
                     }
 
-                    Text {
-                        text: backend.appLanguage === "ar" ? "اسحب لنقل الفقاعة الذهبية" : "Drag to move bubble anywhere"
-                        color: "#3A2E12"
-                        font.pixelSize: 9
-                        horizontalAlignment: Text.AlignHCenter
+                    // Fast TreeDoc Generation
+                    Button {
+                        id: bubbleTreeBtn
                         Layout.fillWidth: true
+                        Layout.preferredHeight: 34
+                        background: Rectangle {
+                            color: bubbleTreeBtn.hovered ? "#1E295D" : cardSlateBg
+                            border.color: borderSlate
+                            radius: 8
+                        }
+                        contentItem: Text {
+                            text: backend.appLanguage === "ar" ? "🌲 تقرير شجري" : "🌲 TreeDoc"
+                            color: metallicGold
+                            font.bold: true
+                            font.pixelSize: 10
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onClicked: {
+                            backend.generate_treedoc(backend.baseDir, "markdown")
+                            bubbleOverlay.updateStats()
+                        }
+                    }
+                }
+
+                // Drag/Status Help label (When Collapsed)
+                Text {
+                    text: backend.appLanguage === "ar" ? "اسحب لنقل الفقاعة الذهبية • انقر على ▼ للمزيد" : "Drag to move bubble • Click ▼ for Stats"
+                    color: textGray
+                    font.pixelSize: 9
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.fillWidth: true
+                    visible: !bubbleOverlay.expanded
+                }
+
+                // EXPANDED REGION: Statistics & Filtered Logs Dashboard
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: bubbleOverlay.expanded
+                    spacing: 12
+
+                    // STATS ROW
+                    Text {
+                        text: backend.appLanguage === "ar" ? "📊 الإحصائيات الفورية للمحرك" : "📊 Real-time Engine Stats"
+                        color: metallicGold
+                        font.bold: true
+                        font.pixelSize: 10
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        // Files Created
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 48
+                            color: "#E60F172A"
+                            border.color: borderSlate
+                            radius: 8
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: 2
+                                Text {
+                                    text: bubbleOverlay.filesCreatedCount.toString()
+                                    color: softGold
+                                    font.bold: true
+                                    font.pixelSize: 14
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+                                Text {
+                                    text: backend.appLanguage === "ar" ? "ملفات منشأة" : "Files Built"
+                                    color: textGray
+                                    font.pixelSize: 8
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+                            }
+                        }
+
+                        // Commands Executed
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 48
+                            color: "#E60F172A"
+                            border.color: borderSlate
+                            radius: 8
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: 2
+                                Text {
+                                    text: bubbleOverlay.commandsExecutedCount.toString()
+                                    color: softGold
+                                    font.bold: true
+                                    font.pixelSize: 14
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+                                Text {
+                                    text: backend.appLanguage === "ar" ? "أوامر منفذة" : "Cmds Executed"
+                                    color: textGray
+                                    font.pixelSize: 8
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+                            }
+                        }
+
+                        // Smart Captures
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 48
+                            color: "#E60F172A"
+                            border.color: borderSlate
+                            radius: 8
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: 2
+                                Text {
+                                    text: bubbleOverlay.smartCapturesCount.toString()
+                                    color: softGold
+                                    font.bold: true
+                                    font.pixelSize: 14
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+                                Text {
+                                    text: backend.appLanguage === "ar" ? "التقاط ذكي" : "Smart Caps"
+                                    color: textGray
+                                    font.pixelSize: 8
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+                            }
+                        }
+                    }
+
+                    // EVENTS HEADER with Clear Button
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: backend.appLanguage === "ar" ? "📜 سجل الأحداث المفلتر" : "📜 Filtered Event Logs"
+                            color: metallicGold
+                            font.bold: true
+                            font.pixelSize: 10
+                        }
+                        Spacer { Layout.fillWidth: true }
+                        Button {
+                            id: bubbleClearLogsBtn
+                            implicitWidth: 20
+                            implicitHeight: 20
+                            background: Rectangle {
+                                color: bubbleClearLogsBtn.hovered ? "#21050E" : "transparent"
+                                radius: 4
+                            }
+                            contentItem: Text {
+                                text: "🧹"
+                                font.pixelSize: 10
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: {
+                                backend.clear_logs()
+                                bubbleOverlay.updateStats()
+                            }
+                        }
+                    }
+
+                    // EVENT FILTER TABS
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        // ALL
+                        Button {
+                            id: filterAllBtn
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 22
+                            background: Rectangle {
+                                color: bubbleOverlay.activeFilter === "all" ? borderSlate : "#0F172A"
+                                border.color: bubbleOverlay.activeFilter === "all" ? metallicGold : borderSlate
+                                radius: 11
+                            }
+                            contentItem: Text {
+                                text: backend.appLanguage === "ar" ? "الكل" : "All"
+                                color: bubbleOverlay.activeFilter === "all" ? metallicGold : textSilver
+                                font.pixelSize: 9
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: {
+                                bubbleOverlay.activeFilter = "all"
+                                bubbleOverlay.refreshLogs()
+                            }
+                        }
+
+                        // BUILD
+                        Button {
+                            id: filterBuildBtn
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 22
+                            background: Rectangle {
+                                color: bubbleOverlay.activeFilter === "build" ? borderSlate : "#0F172A"
+                                border.color: bubbleOverlay.activeFilter === "build" ? metallicGold : borderSlate
+                                radius: 11
+                            }
+                            contentItem: Text {
+                                text: backend.appLanguage === "ar" ? "بناء" : "Build"
+                                color: bubbleOverlay.activeFilter === "build" ? metallicGold : textSilver
+                                font.pixelSize: 9
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: {
+                                bubbleOverlay.activeFilter = "build"
+                                bubbleOverlay.refreshLogs()
+                            }
+                        }
+
+                        // COMMAND
+                        Button {
+                            id: filterCommandBtn
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 22
+                            background: Rectangle {
+                                color: bubbleOverlay.activeFilter === "command" ? borderSlate : "#0F172A"
+                                border.color: bubbleOverlay.activeFilter === "command" ? metallicGold : borderSlate
+                                radius: 11
+                            }
+                            contentItem: Text {
+                                text: backend.appLanguage === "ar" ? "أوامر" : "Cmd"
+                                color: bubbleOverlay.activeFilter === "command" ? metallicGold : textSilver
+                                font.pixelSize: 9
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: {
+                                bubbleOverlay.activeFilter = "command"
+                                bubbleOverlay.refreshLogs()
+                            }
+                        }
+
+                        // CAPTURE
+                        Button {
+                            id: filterCapBtn
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 22
+                            background: Rectangle {
+                                color: bubbleOverlay.activeFilter === "capture" ? borderSlate : "#0F172A"
+                                border.color: bubbleOverlay.activeFilter === "capture" ? metallicGold : borderSlate
+                                radius: 11
+                            }
+                            contentItem: Text {
+                                text: backend.appLanguage === "ar" ? "التقاط" : "Cap"
+                                color: bubbleOverlay.activeFilter === "capture" ? metallicGold : textSilver
+                                font.pixelSize: 9
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: {
+                                bubbleOverlay.activeFilter = "capture"
+                                bubbleOverlay.refreshLogs()
+                            }
+                        }
+                    }
+
+                    // SCROLLABLE EVENT LIST
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        color: "#B3090F1B"
+                        border.color: borderSlate
+                        radius: 8
+                        clip: true
+
+                        ListView {
+                            id: logsListView
+                            anchors.fill: parent
+                            anchors.margins: 6
+                            model: bubbleLogsModel
+                            spacing: 6
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            delegate: Rectangle {
+                                width: logsListView.width
+                                height: logTextMsg.implicitHeight + 14
+                                color: model.type === "error" ? "#33EF4444" : "#1A1E2E"
+                                border.color: model.type === "error" ? "#EF4444" : borderSlate
+                                radius: 6
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    spacing: 8
+
+                                    // Event icon mapping
+                                    Text {
+                                        text: model.category === "build" ? "📦" : (model.category === "command" ? "💻" : (model.category === "capture" ? "🧠" : "ℹ️"))
+                                        font.pixelSize: 11
+                                        Layout.alignment: Qt.AlignTop
+                                    }
+
+                                    ColumnLayout {
+                                        spacing: 1
+                                        Layout.fillWidth: true
+
+                                        Text {
+                                            id: logTextMsg
+                                            text: model.message
+                                            color: model.type === "error" ? "#FCA5A5" : textSilver
+                                            font.pixelSize: 10
+                                            wrapMode: Text.Wrap
+                                            Layout.fillWidth: true
+                                        }
+
+                                        Text {
+                                            text: model.created_at
+                                            color: textGray
+                                            font.pixelSize: 7
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                }
+                            }
+
+                            ScrollBar.vertical: ScrollBar {
+                                width: 4
+                                policy: ScrollBar.AsNeeded
+                            }
+                        }
                     }
                 }
             }

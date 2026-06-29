@@ -9,7 +9,8 @@ import urllib.request
 import urllib.error
 import threading
 from datetime import datetime
-from PySide6.QtCore import QObject, Slot, Signal, Property
+from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer
+from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtGui import QGuiApplication
 from db_manager import DatabaseManager
 
@@ -90,6 +91,21 @@ class EngineBackend(QObject):
         self._last_clipboard_text = ""
         self.clipboard = QGuiApplication.clipboard()
         self.clipboard.dataChanged.connect(self.on_clipboard_changed)
+
+        # Background Clipboard Service Integration
+        self._service_socket = QLocalSocket(self)
+        self._service_socket.readyRead.connect(self.on_service_ready_read)
+        self._service_socket.disconnected.connect(self.on_service_disconnected)
+        self.connect_to_clipboard_service()
+
+        self._service_check_timer = QTimer(self)
+        self._service_check_timer.setInterval(5000)
+        self._service_check_timer.timeout.connect(self.check_service_connection)
+        self._service_check_timer.start()
+
+        if self._clipboard_monitor_enabled:
+            # Safely trigger background service daemon start
+            QTimer.singleShot(1000, self.start_background_service_daemon)
 
         # Smart Task Queue setup
         self._tasks = []
@@ -227,6 +243,9 @@ class EngineBackend(QObject):
 
     # --- Clipboard Automation Monitoring ---
     def on_clipboard_changed(self):
+        # If background service is running and connected, let it handle the clipboard to avoid duplicate actions!
+        if self._service_socket.state() == QLocalSocket.ConnectedState:
+            return
         if not self._clipboard_monitor_enabled:
             return
         try:
@@ -268,10 +287,131 @@ class EngineBackend(QObject):
         status = "تفعيل" if enabled else "تعطيل"
         self.db.log_action("info", f"تم {status} مراقب الحافظة التلقائي بنجاح.")
         self.logAdded.emit("info", f"تم {status} مراقب الحافظة.")
+        if enabled:
+            self.start_background_service_daemon()
+        else:
+            self.stop_background_service_daemon()
 
     @Slot(result=bool)
     def get_clipboard_monitor_enabled(self):
         return self._clipboard_monitor_enabled
+
+    @Slot(result=bool)
+    def get_background_service_active(self):
+        return self._service_socket.state() == QLocalSocket.ConnectedState
+
+    @Slot(result=bool)
+    def start_background_service_daemon(self):
+        try:
+            # Check if already running
+            if self._service_socket.state() == QLocalSocket.ConnectedState:
+                print("Background service daemon is already running and connected.")
+                return True
+            
+            # Try connecting first in case it was started externally
+            if self.connect_to_clipboard_service():
+                return True
+                
+            # If not connected, start the process
+            script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "clipboard_service.py")
+            
+            # Hide console window on Windows
+            startupinfo = None
+            if sys.platform == "win32":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0 # SW_HIDE
+                
+            proc = subprocess.Popen(
+                [sys.executable, script_path, "--daemon"],
+                startupinfo=startupinfo,
+                close_fds=True
+            )
+            print(f"Launched clipboard service daemon, PID: {proc.pid}")
+            self.db.log_action("success", f"🟢 تم تشغيل خدمة مراقبة الحافظة في الخلفية (PID: {proc.pid})")
+            
+            # Wait up to 1.5s and try to connect
+            for _ in range(15):
+                time.sleep(0.1)
+                if self.connect_to_clipboard_service():
+                    break
+            return True
+        except Exception as e:
+            print(f"Error starting background service: {e}")
+            return False
+
+    @Slot(result=bool)
+    def stop_background_service_daemon(self):
+        try:
+            # Send stop command to socket if connected
+            if self._service_socket.state() == QLocalSocket.ConnectedState:
+                try:
+                    payload = json.dumps({"command": "stop"}).encode("utf-8")
+                    self._service_socket.write(payload)
+                    self._service_socket.flush()
+                except Exception:
+                    pass
+                self._service_socket.disconnectFromServer()
+            
+            # Clean up PID process
+            pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "service.pid")
+            if os.path.exists(pid_file):
+                try:
+                    with open(pid_file, "r") as f:
+                        pid = int(f.read().strip())
+                    import signal
+                    os.kill(pid, signal.SIGTERM)
+                    print(f"Killed background service daemon PID: {pid}")
+                except Exception as e:
+                    print(f"Error killing daemon by PID: {e}")
+                try:
+                    os.remove(pid_file)
+                except Exception:
+                    pass
+            
+            # Extra sweep to make sure no duplicate daemons remain hanging
+            if sys.platform == "win32":
+                subprocess.run("wmic process where \"CommandLine like '%clipboard_service.py%'\" call terminate", shell=True, capture_output=True)
+                
+            self.db.log_action("warning", "🔴 تم إيقاف خدمة مراقبة الحافظة في الخلفية.")
+            return True
+        except Exception as e:
+            print(f"Error stopping background service: {e}")
+            return False
+
+    def connect_to_clipboard_service(self):
+        if self._service_socket.state() == QLocalSocket.ConnectedState:
+            return True
+        self._service_socket.connectToServer("GoldenClipboardService")
+        if self._service_socket.waitForConnected(200):
+            print("Successfully connected to GoldenClipboardService pipe!")
+            self.dbUpdated.emit()
+            return True
+        return False
+
+    def check_service_connection(self):
+        if self._clipboard_monitor_enabled:
+            if self._service_socket.state() != QLocalSocket.ConnectedState:
+                self.connect_to_clipboard_service()
+
+    def on_service_ready_read(self):
+        try:
+            data = self._service_socket.readAll().data().decode("utf-8")
+            msg = json.loads(data)
+            print(f"Engine Backend received from service: {msg}")
+            event = msg.get("event")
+            if event == "directive_detected":
+                message = msg.get("message", "")
+                text = msg.get("text", "")
+                self.notificationSent.emit("🤖 خدمة الخلفية", message, "success")
+                self.clipboardBuilderDetected.emit(text)
+                self.dbUpdated.emit()
+        except Exception as e:
+            print(f"Error reading from service socket: {e}")
+
+    def on_service_disconnected(self):
+        print("Disconnected from GoldenClipboardService pipe.")
+        self.dbUpdated.emit()
 
     @Slot(result=str)
     def get_clipboard_text(self):
@@ -295,6 +435,49 @@ class EngineBackend(QObject):
     def set_setting(self, key, value):
         self.db.set_setting(key, value)
         self.dbUpdated.emit()
+
+    @Slot(result=str)
+    def get_bubble_stats(self):
+        try:
+            files_count = len(self.db.get_extracted_files())
+            commands_count = len(self.db.get_command_history())
+            captures_count = len(self.db.get_captures())
+            return json.dumps({
+                "files_count": files_count,
+                "commands_count": commands_count,
+                "captures_count": captures_count
+            })
+        except Exception as e:
+            return json.dumps({"files_count": 0, "commands_count": 0, "captures_count": 0})
+
+    @Slot(str, result=str)
+    def get_bubble_logs_json(self, type_filter="all"):
+        try:
+            logs = self.db.get_logs()
+            filtered_logs = []
+            for l in logs:
+                msg = l["message"].lower()
+                # Determine category
+                log_cat = "info"
+                if "build" in msg or "بناء" in msg or "تصدير" in msg or "@builder" in msg or "file" in msg or "ملف" in msg:
+                    log_cat = "build"
+                elif "command" in msg or "أمر" in msg or "نفذ" in msg or "@executor" in msg or "exec" in msg:
+                    log_cat = "command"
+                elif "capture" in msg or "التقاط" in msg or "حافظة" in msg or "clip" in msg:
+                    log_cat = "capture"
+                
+                if type_filter == "all" or type_filter == log_cat:
+                    filtered_logs.append({
+                        "id": l["id"],
+                        "type": l["type"],
+                        "category": log_cat,
+                        "message": l["message"],
+                        "created_at": l["created_at"]
+                    })
+            return json.dumps(filtered_logs[:5], ensure_ascii=False)
+        except Exception as e:
+            print(f"Error in get_bubble_logs_json: {e}")
+            return "[]"
 
     # --- Safe Executor & Script Evaluator ---
     def _is_safe_command(self, cmd):

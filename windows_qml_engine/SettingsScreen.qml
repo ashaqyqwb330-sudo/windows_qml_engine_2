@@ -267,6 +267,57 @@ Rectangle {
                             }
                         }
                     }
+
+                    // Background Service Status & Control Card
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 52
+                        color: "#0B0E17"
+                        border.color: backend.get_background_service_active() ? "#10B981" : borderSlate
+                        border.width: 1
+                        radius: 8
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 12
+
+                            Rectangle {
+                                width: 10
+                                height: 10
+                                radius: 5
+                                color: backend.get_background_service_active() ? "#10B981" : "#EF4444"
+                            }
+
+                            Text {
+                                text: backend.get_background_service_active() 
+                                    ? (backend.appLanguage === "ar" ? "خدمة الخلفية الدائمة: نشطة ومتصلة 🟢" : "Persistent Background Service: Active & Connected")
+                                    : (backend.appLanguage === "ar" ? "خدمة الخلفية الدائمة: خاملة 🔴" : "Persistent Background Service: Inactive")
+                                color: textSilver
+                                font.bold: true
+                                font.pixelSize: 11
+                                Layout.fillWidth: true
+                            }
+
+                            Button {
+                                id: startServiceBtn
+                                text: backend.appLanguage === "ar" ? "تشغيل الخدمة" : "Start Service"
+                                visible: !backend.get_background_service_active()
+                                onClicked: {
+                                    backend.start_background_service_daemon();
+                                }
+                            }
+
+                            Button {
+                                id: stopServiceBtn
+                                text: backend.appLanguage === "ar" ? "إيقاف الخدمة" : "Stop Service"
+                                visible: backend.get_background_service_active()
+                                onClicked: {
+                                    backend.stop_background_service_daemon();
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
