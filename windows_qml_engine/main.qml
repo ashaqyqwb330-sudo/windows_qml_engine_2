@@ -1807,4 +1807,34 @@ ApplicationWindow {
             localFileBrowserTab.loadLocalFiles(backend.baseDir);
         }
     }
+
+    // Dynamic loaders for Splash and Onboarding cinematic overlays
+    Loader {
+        id: onboardingLoader
+        anchors.fill: parent
+        z: 998
+        focus: true
+        onLoaded: {
+            item.completed.connect(function() {
+                onboardingLoader.source = ""
+            })
+        }
+    }
+
+    Loader {
+        id: splashLoader
+        source: "SplashScreen.qml"
+        anchors.fill: parent
+        z: 999
+        focus: true
+        onLoaded: {
+            item.finished.connect(function() {
+                splashLoader.source = ""
+                // After splash finishes, check if we need to show onboarding
+                if (backend.get_setting("has_seen_onboarding", "false") !== "true") {
+                    onboardingLoader.source = "OnboardingScreen.qml"
+                }
+            })
+        }
+    }
 }
