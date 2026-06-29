@@ -70,6 +70,10 @@ object SmartCaptureEngine {
 
     fun processCapturedText(text: String, context: CommandContext): CaptureResult {
         val trimmed = text.trim()
+        
+        // الكشف التلقائي عن الأنماط وحفظها في بنك الأنماط (Style Bank)
+        StyleDetector.detectAndSave(context.context, text)
+
         val sp = context.context.getSharedPreferences("SmartCapturePrefs", android.content.Context.MODE_PRIVATE)
         
         // 1. قراءة خيارات التحكم الفاخرة

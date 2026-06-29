@@ -240,7 +240,8 @@ class EngineBackend(QObject):
                     # Classify
                     clip_type = "text"
                     theme = "slate"
-                    if "@builder:file" in text and "@builder:end" in text:
+                    prefix_builder = self.db.get_setting("prefix_builder", "@builder")
+                    if (f"{prefix_builder}:file" in text and f"{prefix_builder}:end" in text) or ("@builder:file" in text and "@builder:end" in text):
                         clip_type = "builder"
                         theme = "gold"
                         self.clipboardBuilderDetected.emit(text)
@@ -285,6 +286,15 @@ class EngineBackend(QObject):
             self.clipboard.setText(text)
         except Exception:
             pass
+
+    @Slot(str, str, result=str)
+    def get_setting(self, key, default=""):
+        return self.db.get_setting(key, default)
+
+    @Slot(str, str)
+    def set_setting(self, key, value):
+        self.db.set_setting(key, value)
+        self.dbUpdated.emit()
 
     # --- Safe Executor & Script Evaluator ---
     def _is_safe_command(self, cmd):
@@ -530,11 +540,18 @@ class EngineBackend(QObject):
                     project_dir = p["path"]
                     break
 
+        prefix_builder = self.db.get_setting("prefix_builder", "@builder")
+        prefix_executor = self.db.get_setting("prefix_executor", "@executor")
+
         for line in lines:
             trimmed = line.strip()
             
+            is_builder_file = f"{prefix_builder}:file" in trimmed or "@builder:file" in trimmed
+            is_builder_end = f"{prefix_builder}:end" in trimmed or "@builder:end" in trimmed
+            is_executor = f"{prefix_executor}:" in trimmed or "@executor:" in trimmed
+
             # Check @builder:file directive
-            if "@builder:file" in trimmed:
+            if is_builder_file:
                 if current_file_path:
                     success, msg = self._write_file_safely(current_file_path, "\n".join(current_content))
                     if success:
@@ -545,16 +562,17 @@ class EngineBackend(QObject):
                     current_file_path = None
                     current_content = []
 
-                match = re.search(r"@builder:file\s+(\S+)", trimmed)
+                pattern = rf"(?:{re.escape(prefix_builder)}|@builder):file\s+(\S+)"
+                match = re.search(pattern, trimmed)
                 if match:
                     current_rel_path = match.group(1)
                     current_file_path = os.path.join(project_dir, current_rel_path)
                     self.logAdded.emit("info", f"📄 جاري إنشاء ملف: {current_rel_path}")
                 else:
-                    errors.append("توجيه @builder:file غير صالح أو مفقود المسار.")
+                    errors.append(f"توجيه {prefix_builder}:file غير صالح أو مفقود المسار.")
 
             # Check @builder:end directive
-            elif "@builder:end" in trimmed:
+            elif is_builder_end:
                 if current_file_path:
                     success, msg = self._write_file_safely(current_file_path, "\n".join(current_content))
                     if success:
@@ -565,11 +583,14 @@ class EngineBackend(QObject):
                     current_file_path = None
                     current_content = []
                 else:
-                    errors.append("تم العثور على @builder:end دون بداية @builder:file")
+                    errors.append(f"تم العثور على {prefix_builder}:end دون بداية {prefix_builder}:file")
 
             # Check @executor directive
-            elif "@executor:" in trimmed:
-                cmd = trimmed.split("@executor:", 1)[1].strip()
+            elif is_executor:
+                if f"{prefix_executor}:" in trimmed:
+                    cmd = trimmed.split(f"{prefix_executor}:", 1)[1].strip()
+                else:
+                    cmd = trimmed.split("@executor:", 1)[1].strip()
                 if cmd:
                     self.logAdded.emit("info", f"⚙️ جاري التحقق من سلامة وتنفيذ الأمر: {cmd}")
                     success, output = self._run_safe_command_with_dir(cmd, project_dir)

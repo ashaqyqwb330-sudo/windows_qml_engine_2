@@ -187,6 +187,7 @@ enum class MainTab(val ltrTitle: String, val rtlTitle: String) {
     TREEDOC("TreeDoc", "الشجرية"),
     EXECUTOR("Executor", "المنفذ"),
     GEMINI("Gemini AI", "جمناي الذكي"),
+    LINKS("Links", "الروابط"),
     PROJECTS("Projects", "المشاريع"),
     SETTINGS("Settings", "الإعدادات")
 }
@@ -204,6 +205,7 @@ fun MainAppContent(
     var showQuickActionsHub by remember { mutableStateOf(false) }
     var showHelpCenter by remember { mutableStateOf(false) }
     var showSourceExport by remember { mutableStateOf(false) }
+    var showStyleBank by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val sharedPrefs = remember(context) { context.getSharedPreferences("SmartPrefs", Context.MODE_PRIVATE) }
@@ -294,6 +296,8 @@ fun MainAppContent(
                     HelpCenterScreen(onNavigateBack = { showHelpCenter = false })
                 } else if (showSourceExport) {
                     SourceExportScreen(onNavigateBack = { showSourceExport = false })
+                } else if (showStyleBank) {
+                    StyleBankScreen(onNavigateBack = { showStyleBank = false })
                 } else {
                     when (currentTab) {
                         MainTab.MONITOR -> MonitorScreen(viewModel)
@@ -301,6 +305,7 @@ fun MainAppContent(
                         MainTab.TREEDOC -> TreeDocScreen(viewModel)
                         MainTab.EXECUTOR -> ExecutorDashboardScreen(viewModel)
                         MainTab.GEMINI -> GeminiScreen(viewModel)
+                        MainTab.LINKS -> LinkAutomatorScreen()
                         MainTab.PROJECTS -> ProjectsScreen(viewModel)
                         MainTab.SETTINGS -> SettingsScreen(
                             viewModel = viewModel,
@@ -309,7 +314,8 @@ fun MainAppContent(
                             onNavigateToAIPromptHub = { showAIPromptHub = true },
                             onNavigateToQuickActionsHub = { showQuickActionsHub = true },
                             onNavigateToHelpCenter = { showHelpCenter = true },
-                            onNavigateToSourceExport = { showSourceExport = true }
+                            onNavigateToSourceExport = { showSourceExport = true },
+                            onNavigateToStyleBank = { showStyleBank = true }
                         )
                     }
                 }
@@ -539,6 +545,24 @@ fun MainAppContent(
                                     enabled = !isBubbleExecuting
                                 ) {
                                     Text("تقرير الشجرة 📊", fontSize = 11.sp)
+                                }
+                            }
+
+                            // Chat Link Automator Shortcut
+                            Button(
+                                onClick = {
+                                    currentTab = MainTab.LINKS
+                                    showBubbleDialog = false
+                                    Toast.makeText(context, "🔗 تم الانتقال إلى مؤتمت الروابط الذكي!", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = GoldGlassBg, contentColor = BrightGold),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().height(38.dp).border(1.dp, MetallicGold.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                                enabled = !isBubbleExecuting
+                            ) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Share, contentDescription = null, tint = BrightGold, modifier = Modifier.size(14.dp))
+                                    Text("مُؤتمت الروابط 🔗", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -893,6 +917,7 @@ fun getTabIcon(tab: MainTab): ImageVector {
         MainTab.TREEDOC -> Icons.Default.List
         MainTab.EXECUTOR -> Icons.Default.PlayArrow
         MainTab.GEMINI -> Icons.Default.Star
+        MainTab.LINKS -> Icons.Default.Share
         MainTab.PROJECTS -> Icons.Default.Menu
         MainTab.SETTINGS -> Icons.Default.Settings
     }
@@ -1155,6 +1180,166 @@ fun MonitorScreen(viewModel: MainViewModel) {
                         } else {
                             Text("معالجة النص والتعليمات", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    var showFileOrFolderMenu by remember { mutableStateOf(false) }
+                    var selectedFileOrFolder by remember { mutableStateOf<File?>(null) }
+
+                    OutlinedButton(
+                        onClick = {
+                            com.example.service.CustomFileExplorerDialog.showForProcessing(context) { file ->
+                                selectedFileOrFolder = file
+                                showFileOrFolderMenu = true
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("process_file_or_folder_button"),
+                        border = BorderStroke(1.dp, MetallicGold),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MetallicGold),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Menu, contentDescription = null, tint = MetallicGold, modifier = Modifier.size(20.dp))
+                            Text("📂 معالجة ملف/مجلد", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+
+                    if (showFileOrFolderMenu && selectedFileOrFolder != null) {
+                        val file = selectedFileOrFolder!!
+                        AlertDialog(
+                            onDismissRequest = { showFileOrFolderMenu = false },
+                            confirmButton = {},
+                            dismissButton = {
+                                TextButton(onClick = { showFileOrFolderMenu = false }) {
+                                    Text("إلغاء", color = MetallicGold)
+                                }
+                            },
+                            title = {
+                                Text(
+                                    text = if (file.isDirectory) "📁 مجلد: ${file.name}" else "📄 ملف: ${file.name}",
+                                    color = MetallicGold,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = "اختر الإجراء الذي ترغب في تطبيقه على ${if (file.isDirectory) "المجلد" else "الملف"}:",
+                                        color = TextSilver,
+                                        fontSize = 13.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    if (file.isDirectory) {
+                                        Button(
+                                            onClick = {
+                                                showFileOrFolderMenu = false
+                                                scope.launch {
+                                                    val result = com.example.engine.UniversalActionHandler.handleAction(
+                                                        context,
+                                                        "execute_commands",
+                                                        "@treedoc --format=html"
+                                                    )
+                                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = ButtonDefaults.buttonColors(containerColor = CardSlateBg)
+                                        ) {
+                                            Text("📊 إنشاء تقرير شجري", color = Color.White)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                showFileOrFolderMenu = false
+                                                scope.launch {
+                                                    try {
+                                                        val wrapped = com.example.engine.BuildPackExporter.wrapDirectory(context, file)
+                                                        if (wrapped.isNotEmpty()) {
+                                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Build Pack Folder", wrapped))
+                                                            Toast.makeText(context, "📦 تم تجميع المجلد كحزمة بناء ونسخه للحافظة!", Toast.LENGTH_LONG).show()
+                                                        } else {
+                                                            Toast.makeText(context, "⚠️ المجلد فارغ أو لا يحتوي على ملفات صالحة للتجميع", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "⚠️ خطأ أثناء تجميع المجلد: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = ButtonDefaults.buttonColors(containerColor = CardSlateBg)
+                                        ) {
+                                            Text("📦 حزمة بناء للمجلد", color = Color.White)
+                                        }
+                                    } else {
+                                        Button(
+                                            onClick = {
+                                                showFileOrFolderMenu = false
+                                                scope.launch {
+                                                    try {
+                                                        val content = file.readText(Charsets.UTF_8)
+                                                        com.example.engine.LargeTextProcessor.processLargeText(context, content, "smart_capture")
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "⚠️ خطأ في قراءة الملف: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = ButtonDefaults.buttonColors(containerColor = CardSlateBg)
+                                        ) {
+                                            Text("🧠 تحليل ذكي", color = Color.White)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                showFileOrFolderMenu = false
+                                                scope.launch {
+                                                    try {
+                                                        val content = file.readText(Charsets.UTF_8)
+                                                        com.example.engine.LargeTextProcessor.processLargeText(context, content, "build_pack")
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "⚠️ خطأ في قراءة الملف: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = ButtonDefaults.buttonColors(containerColor = CardSlateBg)
+                                        ) {
+                                            Text("📦 حزمة بناء", color = Color.White)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                showFileOrFolderMenu = false
+                                                scope.launch {
+                                                    try {
+                                                        val content = file.readText(Charsets.UTF_8)
+                                                        com.example.engine.LargeTextProcessor.processLargeText(context, content, "convert_beautify")
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "⚠️ خطأ في قراءة الملف: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = ButtonDefaults.buttonColors(containerColor = CardSlateBg)
+                                        ) {
+                                            Text("🎨 تحويل وتجميل", color = Color.White)
+                                        }
+                                    }
+                                }
+                            },
+                            containerColor = SlateBg,
+                            shape = RoundedCornerShape(16.dp)
+                        )
                     }
                 }
             }
@@ -4757,7 +4942,8 @@ fun SettingsScreen(
     onNavigateToAIPromptHub: () -> Unit,
     onNavigateToQuickActionsHub: () -> Unit,
     onNavigateToHelpCenter: () -> Unit,
-    onNavigateToSourceExport: () -> Unit
+    onNavigateToSourceExport: () -> Unit,
+    onNavigateToStyleBank: () -> Unit
 ) {
     var bPrefix by remember { mutableStateOf(viewModel.prefixBuilder.value) }
     var ePrefix by remember { mutableStateOf(viewModel.prefixExecutor.value) }
@@ -4870,6 +5056,82 @@ fun SettingsScreen(
             }
         }
 
+        // Chat Link Automator settings
+        item {
+            var sExtractCode by remember { mutableStateOf(context.getSharedPreferences("LinkAutomatorPrefs", Context.MODE_PRIVATE).getBoolean("extract_code", true)) }
+            var sExtractText by remember { mutableStateOf(context.getSharedPreferences("LinkAutomatorPrefs", Context.MODE_PRIVATE).getBoolean("extract_text", true)) }
+            var sApplySmartCapture by remember { mutableStateOf(context.getSharedPreferences("LinkAutomatorPrefs", Context.MODE_PRIVATE).getBoolean("apply_smart_capture", true)) }
+
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🔗 مؤتمت روابط المحادثات", color = MetallicGold, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        com.example.ui.components.SettingsTooltip(
+                            title = "مؤتمت روابط المحادثات",
+                            description = "خيارات استخراج وتوجيه الكود والنص عند معالجة روابط ChatGPT أو DeepSeek أو Claude العامة.",
+                            example = "مثلاً: إذا قمت بتعطيل استخراج النصوص، فسيتم تجاهل النصوص داخل <p> وحفظ الأكواد فقط."
+                        )
+                    }
+                    Text("اضبط سلوك التقسيم والتوجيه التلقائي للملفات المستخرجة من روابط المحادثات العامة.", color = TextGray, fontSize = 10.sp)
+
+                    Divider(color = GlassBorder, thickness = 0.6.dp)
+
+                    // Switch 1: Extract Code
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("استخراج الأكواد تلقائياً", color = Color.White, fontSize = 12.sp)
+                        Switch(
+                            checked = sExtractCode,
+                            onCheckedChange = {
+                                sExtractCode = it
+                                context.getSharedPreferences("LinkAutomatorPrefs", Context.MODE_PRIVATE).edit().putBoolean("extract_code", it).apply()
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = SlateBg, checkedTrackColor = MetallicGold)
+                        )
+                    }
+
+                    // Switch 2: Extract Text
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("استخراج النصوص والشروحات", color = Color.White, fontSize = 12.sp)
+                        Switch(
+                            checked = sExtractText,
+                            onCheckedChange = {
+                                sExtractText = it
+                                context.getSharedPreferences("LinkAutomatorPrefs", Context.MODE_PRIVATE).edit().putBoolean("extract_text", it).apply()
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = SlateBg, checkedTrackColor = MetallicGold)
+                        )
+                    }
+
+                    // Switch 3: Apply Smart Capture on Text
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("تطبيق الالتقاط الذكي على النصوص", color = Color.White, fontSize = 12.sp)
+                        Switch(
+                            checked = sApplySmartCapture,
+                            onCheckedChange = {
+                                sApplySmartCapture = it
+                                context.getSharedPreferences("LinkAutomatorPrefs", Context.MODE_PRIVATE).edit().putBoolean("apply_smart_capture", it).apply()
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = SlateBg, checkedTrackColor = MetallicGold),
+                            enabled = sExtractText
+                        )
+                    }
+                }
+            }
+        }
+
         // Quick Actions section
         item {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -4960,6 +5222,40 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("فتح المركز", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // 🏛️ بنك الأنماط الفاخر (Style Bank)
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth().testTag("style_bank_card")) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("بنك الأنماط الفاخر (Style Bank)", color = MetallicGold, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            com.example.ui.components.SettingsTooltip(
+                                title = "بنك الأنماط الفاخر",
+                                description = "إدارة وتعديل أنماط CSS المخصصة والمستخرجة تلقائياً من الملفات وحقنها في مستنداتك.",
+                                example = "تطبيق سمة أزرار ذهبية مخصصة أو بطاقات زجاجية فاخرة بنقرة زر."
+                            )
+                        }
+                        Text("إضافة وتصفح وتطبيق أنماط الـ CSS المخصصة على قوالب المحتوى والمستندات الذكية", color = TextGray, fontSize = 10.sp)
+                    }
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    Button(
+                        onClick = onNavigateToStyleBank,
+                        colors = ButtonDefaults.buttonColors(containerColor = MetallicGold, contentColor = SlateBg),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("فتح البنك", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

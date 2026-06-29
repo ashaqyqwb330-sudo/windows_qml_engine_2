@@ -132,6 +132,22 @@ class ClipboardMonitorService : Service() {
             this, 2, pauseResumeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val smartCaptureIntent = Intent(this, NotificationActionActivity::class.java).apply {
+            putExtra("action_type", "smart_capture")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingSmartCaptureIntent = PendingIntent.getActivity(
+            this, 3, smartCaptureIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val executeIntent = Intent(this, NotificationActionActivity::class.java).apply {
+            putExtra("action_type", "execute_commands")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingExecuteIntent = PendingIntent.getActivity(
+            this, 4, executeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val pauseResumeLabel = if (isPaused) "استئناف المراقبة" else "إيقاف مؤقت"
         val pauseResumeIcon = if (isPaused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
 
@@ -145,6 +161,8 @@ class ClipboardMonitorService : Service() {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .addAction(pauseResumeIcon, pauseResumeLabel, pendingPauseResumeIntent)
+            .addAction(android.R.drawable.ic_menu_compass, "🧠 التقاط سريع", pendingSmartCaptureIntent)
+            .addAction(android.R.drawable.ic_menu_preferences, "⚙️ تنفيذ", pendingExecuteIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "إيقاف المراقبة", pendingStopIntent)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .build()

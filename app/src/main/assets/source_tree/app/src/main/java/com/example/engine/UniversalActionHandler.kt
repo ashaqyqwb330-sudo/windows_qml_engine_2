@@ -28,8 +28,29 @@ object UniversalActionHandler {
             return@withContext UniversalActionResult(false, "⚠️ النص المدخل فارغ!")
         }
 
+        // 1. Check size of the text
+        val LIMIT_5MB = 5 * 1024 * 1024
+        if (trimmed.length >= LIMIT_5MB) {
+            withContext(Dispatchers.Main) {
+                LargeTextProcessor.processLargeText(context, text, action)
+            }
+            return@withContext UniversalActionResult(true, "⚡ جاري تقسيم ومعالجة النص الضخم (> 5MB) في الخلفية...")
+        }
+
+        // 2. Resolve action type based on text content
+        val sp = context.getSharedPreferences("SmartPrefs", Context.MODE_PRIVATE)
+        val pBuilder = sp.getString("prefix_builder", "@builder") ?: "@builder"
+        val pExecutor = sp.getString("prefix_executor", "@executor") ?: "@executor"
+
+        var resolvedAction = action
+        if (trimmed.contains(pBuilder) || trimmed.contains(pExecutor) || trimmed.contains("@builder:file") || trimmed.contains("@executor:")) {
+            resolvedAction = "execute_commands"
+        } else if (trimmed.contains("# ") || trimmed.contains("**") || trimmed.contains("`") || trimmed.contains("|") || (!trimmed.contains("{") && !trimmed.contains("["))) {
+            resolvedAction = "smart_capture"
+        }
+
         return@withContext try {
-            when (action) {
+            when (resolvedAction) {
                 "smart_capture" -> {
                     val baseDir = ProjectContextManager.getCurrentProjectDir(context)
                     val cmdContext = CommandContext(

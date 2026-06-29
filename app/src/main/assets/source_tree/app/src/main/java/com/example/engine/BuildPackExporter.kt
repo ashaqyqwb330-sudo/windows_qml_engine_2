@@ -457,4 +457,30 @@ object BuildPackExporter {
         }
         return path == pattern || filename == pattern || path.endsWith("/$pattern")
     }
+
+    fun wrapDirectory(context: Context, dir: File): String {
+        val sb = StringBuilder()
+        if (!dir.exists() || !dir.isDirectory) return ""
+        val files = dir.walkTopDown().filter { it.isFile }.toList()
+        for ((index, file) in files.withIndex()) {
+            val relativePath = file.relativeTo(dir).path.replace('\\', '/')
+            val content = try { file.readText(Charsets.UTF_8) } catch (e: Exception) { "" }
+            val ext = file.extension.lowercase(java.util.Locale.ROOT)
+            val comment = when (ext) {
+                "html", "xml" -> "<!-- ملف: $relativePath -->"
+                "md", "txt" -> "[//]: # (ملف: $relativePath)"
+                "py", "sh", "rb", "yml", "yaml", "ini", "properties" -> "# ملف: $relativePath"
+                "kt", "java", "js", "ts", "css", "cpp", "c", "cs" -> "// ملف: $relativePath"
+                else -> "// ملف: $relativePath"
+            }
+            sb.append("@builder:file $relativePath\n")
+            sb.append(comment).append("\n")
+            sb.append(content).append("\n")
+            sb.append("@builder:end")
+            if (index < files.size - 1) {
+                sb.append("\n\n─── ✂️ الملف التالي ✂️ ───\n\n")
+            }
+        }
+        return sb.toString()
+    }
 }
