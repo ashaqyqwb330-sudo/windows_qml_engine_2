@@ -221,7 +221,10 @@ ApplicationWindow {
         for (var m = 0; m < styleList.length; m++) {
             stylesModel.append({
                 "name": styleList[m].name,
-                "css_code": styleList[m].css_code
+                "css_code": styleList[m].css_code,
+                "selector": styleList[m].selector || "",
+                "category": styleList[m].category || "عام",
+                "created_at": styleList[m].created_at || ""
             })
         }
 
@@ -876,129 +879,168 @@ ApplicationWindow {
             // TAB 2: Smart Capture & Style Bank
             Rectangle {
                 color: "transparent"
+                
+                property string subTab: "capture" // "capture" or "style_bank"
+
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 20
                     spacing: 12
 
+                    // Sub-tab Navigation Pills
                     RowLayout {
-                        Text {
-                            text: getTxt("beautifier_title")
-                            color: metallicGold
-                            font.bold: true
-                            font.pixelSize: 18
-                        }
-                        Spacer { Layout.fillWidth: true }
+                        spacing: 10
+                        Layout.fillWidth: true
                         
-                        Text { text: getTxt("theme_selector_lbl"); color: textSilver; font.pixelSize: 11 }
-                        ComboBox {
-                            id: themeSelector
-                            model: ["space", "oasis", "academic", "dark", "light"]
-                            implicitWidth: 120
-                        }
-                    }
-
-                    ScrollView {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 180
-                        TextArea {
-                            id: captureInputArea
-                            placeholderText: getTxt("placeholder_capture")
-                            color: textSilver
-                            font.family: "Consolas"
-                            font.pixelSize: 12
+                        Button {
+                            id: tabCapBtn
+                            text: backend.appLanguage === "ar" ? "🧠 الالتقاط الذكي" : "🧠 Smart Capture"
+                            implicitHeight: 32
+                            implicitWidth: 150
+                            checkable: true
+                            checked: subTab === "capture"
+                            onClicked: subTab = "capture"
                             background: Rectangle {
-                                color: cardSlateBg
-                                border.color: borderSlate
+                                color: tabCapBtn.checked ? borderSlate : "transparent"
+                                border.color: tabCapBtn.checked ? metallicGold : borderSlate
                                 border.width: 1
-                                radius: 8
+                                radius: 16
                             }
-                            selectByMouse: true
-                            wrapMode: TextEdit.Wrap
+                            contentItem: Text {
+                                text: tabCapBtn.text
+                                color: tabCapBtn.checked ? metallicGold : textSilver
+                                font.bold: true
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
                         }
-                    }
-
-                    RowLayout {
+                        
                         Button {
-                            text: getTxt("btn_capture")
-                            onClicked: {
-                                backend.smart_capture_content_v2(captureInputArea.text, themeSelector.currentText)
+                            id: tabStyleBtn
+                            text: backend.appLanguage === "ar" ? "🎨 بنك الأنماط" : "🎨 Style Bank"
+                            implicitHeight: 32
+                            implicitWidth: 150
+                            checkable: true
+                            checked: subTab === "style_bank"
+                            onClicked: subTab = "style_bank"
+                            background: Rectangle {
+                                color: tabStyleBtn.checked ? borderSlate : "transparent"
+                                border.color: tabStyleBtn.checked ? metallicGold : borderSlate
+                                border.width: 1
+                                radius: 16
+                            }
+                            contentItem: Text {
+                                text: tabStyleBtn.text
+                                color: tabStyleBtn.checked ? metallicGold : textSilver
+                                font.bold: true
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
                             }
                         }
-                        Button {
-                            text: getTxt("btn_paste")
-                            onClicked: captureInputArea.paste()
-                        }
+                        
+                        Spacer { Layout.fillWidth: true }
                     }
 
-                    // Style Bank Custom Snippets List
-                    Text { text: backend.appLanguage === "ar" ? "🎨 بنك التصاميم والأنماط (Style Bank):" : "🎨 Dynamic Style Bank Repository:"; color: metallicGold; font.bold: true; font.pixelSize: 12 }
-                    
-                    ScrollView {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 100
-                        ListView {
-                            model: stylesModel
-                            orientation: ListView.Horizontal
-                            spacing: 10
-                            delegate: Rectangle {
-                                width: 220
-                                height: 80
-                                color: cardSlateBg
-                                border.color: borderSlate
-                                radius: 8
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 10
-                                    Text { text: model.name; color: textSilver; font.bold: true; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
-                                    RowLayout {
-                                        Button {
-                                            text: backend.appLanguage === "ar" ? "نسخ 📋" : "Copy 📋"
-                                            implicitHeight: 24
-                                            onClicked: {
-                                                captureInputArea.text = model.css_code
-                                                toastBox.trigger("Style Bank", "Loaded custom styling template.", "info")
-                                            }
-                                        }
-                                        Button {
-                                            text: backend.appLanguage === "ar" ? "حذف ❌" : "Delete ❌"
-                                            implicitHeight: 24
-                                            onClicked: backend.delete_style(model.name)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Text { text: getTxt("history_lbl"); color: metallicGold; font.bold: true; font.pixelSize: 12 }
-
-                    ScrollView {
+                    // Content Stack for sub-tabs
+                    StackLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        ListView {
-                            id: capturesListView
-                            model: capturesModel
-                            spacing: 8
-                            delegate: Rectangle {
-                                width: capturesListView.width - 20
-                                height: 50
-                                color: cardSlateBg
-                                border.color: borderSlate
-                                radius: 6
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 15
-                                    anchors.rightMargin: 15
-                                    Text { text: "📌 " + model.title; color: textSilver; font.bold: true; Layout.fillWidth: true }
-                                    Text { text: "[" + model.type + "]"; color: metallicGold; font.pixelSize: 10 }
-                                    Text { text: model.created_at; color: textGray; font.pixelSize: 10 }
-                                    Button {
-                                        text: getTxt("open_file")
-                                        onClicked: Qt.openUrlExternally("file:///" + model.file_path)
+                        currentIndex: subTab === "capture" ? 0 : 1
+
+                        // Sub-Tab 1: Smart Capture
+                        ColumnLayout {
+                            spacing: 12
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            RowLayout {
+                                Text {
+                                    text: getTxt("beautifier_title")
+                                    color: metallicGold
+                                    font.bold: true
+                                    font.pixelSize: 16
+                                }
+                                Spacer { Layout.fillWidth: true }
+                                
+                                Text { text: getTxt("theme_selector_lbl"); color: textSilver; font.pixelSize: 11 }
+                                ComboBox {
+                                    id: themeSelector
+                                    model: ["space", "oasis", "academic", "dark", "light"]
+                                    implicitWidth: 120
+                                }
+                            }
+
+                            ScrollView {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 180
+                                TextArea {
+                                    id: captureInputArea
+                                    placeholderText: getTxt("placeholder_capture")
+                                    color: textSilver
+                                    font.family: "Consolas"
+                                    font.pixelSize: 12
+                                    background: Rectangle {
+                                        color: cardSlateBg
+                                        border.color: borderSlate
+                                        border.width: 1
+                                        radius: 8
+                                    }
+                                    selectByMouse: true
+                                    wrapMode: TextEdit.Wrap
+                                }
+                            }
+
+                            RowLayout {
+                                Button {
+                                    text: getTxt("btn_capture")
+                                    onClicked: {
+                                        backend.smart_capture_content_v2(captureInputArea.text, themeSelector.currentText)
+                                    }
+                                }
+                                Button {
+                                    text: getTxt("btn_paste")
+                                    onClicked: captureInputArea.paste()
+                                }
+                            }
+
+                            Text { text: getTxt("history_lbl"); color: metallicGold; font.bold: true; font.pixelSize: 12 }
+
+                            ScrollView {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                ListView {
+                                    id: capturesListView
+                                    model: capturesModel
+                                    spacing: 8
+                                    delegate: Rectangle {
+                                        width: capturesListView.width - 20
+                                        height: 50
+                                        color: cardSlateBg
+                                        border.color: borderSlate
+                                        radius: 6
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 15
+                                            anchors.rightMargin: 15
+                                            Text { text: "📌 " + model.title; color: textSilver; font.bold: true; Layout.fillWidth: true }
+                                            Text { text: "[" + model.type + "]"; color: metallicGold; font.pixelSize: 10 }
+                                            Text { text: model.created_at; color: textGray; font.pixelSize: 10 }
+                                            Button {
+                                                text: getTxt("open_file")
+                                                onClicked: Qt.openUrlExternally("file:///" + model.file_path)
+                                            }
+                                        }
                                     }
                                 }
                             }
+                        }
+
+                        // Sub-Tab 2: Style Bank Full-Featured Panel
+                        StyleBankScreen {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
                         }
                     }
                 }

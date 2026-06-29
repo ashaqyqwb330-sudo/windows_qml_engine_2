@@ -828,6 +828,12 @@ class EngineBackend(QObject):
         styles = self.db.get_styles()
         return json.dumps(styles, ensure_ascii=False)
 
+    @Slot(str, str, str, str)
+    def add_style(self, name, css_code, selector="", category="general"):
+        self.db.add_style(name, css_code, selector, category)
+        self.logAdded.emit("success", f"🎨 تم إضافة نمط بلمسة احترافية لبنك التصاميم باسم: {name}")
+        self.dbUpdated.emit()
+
     @Slot(str)
     def delete_style(self, name):
         self.db.delete_style(name)

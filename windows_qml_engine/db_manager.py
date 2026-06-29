@@ -91,9 +91,19 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL UNIQUE,
                     css_code TEXT NOT NULL,
+                    selector TEXT DEFAULT '',
+                    category TEXT DEFAULT 'general',
                     created_at TEXT NOT NULL
                 )
             """)
+            try:
+                cursor.execute("ALTER TABLE style_bank ADD COLUMN selector TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cursor.execute("ALTER TABLE style_bank ADD COLUMN category TEXT DEFAULT 'general'")
+            except sqlite3.OperationalError:
+                pass
 
             # Command History Table for holding execution history
             cursor.execute("""
@@ -226,12 +236,12 @@ class DatabaseManager:
             return row["value"] if row else default
 
     # --- Style Bank Methods ---
-    def add_style(self, name, css_code):
+    def add_style(self, name, css_code, selector="", category="general"):
         try:
             with self.get_connection() as conn:
                 conn.cursor().execute(
-                    "INSERT OR REPLACE INTO style_bank (name, css_code, created_at) VALUES (?, ?, ?)",
-                    (name, css_code, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    "INSERT OR REPLACE INTO style_bank (name, css_code, selector, category, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (name, css_code, selector, category, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 )
                 conn.commit()
             return True
