@@ -956,7 +956,8 @@ ApplicationWindow {
                 }
             }
         }
-    ]
+    }
+]
 
     // Top Header Navigation Bar
     Rectangle {

@@ -95,9 +95,13 @@ Rectangle {
         prefixBuilderInput.text = backend.get_setting("prefix_builder", "@builder");
         prefixExecutorInput.text = backend.get_setting("prefix_executor", "@executor");
         prefixTreedocInput.text = backend.get_setting("prefix_treedoc", "@treedoc");
+        pathBuilderInput.text = backend.get_setting("path_builder", "");
+        pathExecutorInput.text = backend.get_setting("path_executor", "");
+        pathTreedocInput.text = backend.get_setting("path_treedoc", "");
 
         // Developer Mode
         devModeSwitch.checked = backend.get_setting("dev_mode", "false") === "true";
+        absPathCombo.currentIndex = absPathCombo.find(backend.get_setting("absolute_path_handling", "convert"));
         contextMgrSwitch.checked = backend.get_setting("project_context_manager", "false") === "true";
         folderNamingCombo.currentIndex = folderNamingCombo.find(backend.get_setting("folder_naming_pattern", "smart"));
         fileNamingCombo.currentIndex = fileNamingCombo.find(backend.get_setting("file_naming_pattern", "clean"));
@@ -343,7 +347,7 @@ Rectangle {
                     }
 
                     GridLayout {
-                        columns: 2
+                        columns: 4
                         columnSpacing: 15
                         rowSpacing: 8
                         Layout.fillWidth: true
@@ -355,6 +359,14 @@ Rectangle {
                             color: textSilver
                             background: Rectangle { color: slateBg; border.color: borderSlate; radius: 4 }
                         }
+                        Text { text: backend.appLanguage === "ar" ? "مسار Builder المخصص:" : "Builder Path:"; color: textSilver; font.pixelSize: 11 }
+                        TextField {
+                            id: pathBuilderInput
+                            Layout.fillWidth: true
+                            color: textSilver
+                            placeholderText: backend.appLanguage === "ar" ? "الافتراضي (مجلد المشروع)" : "Default (Project folder)"
+                            background: Rectangle { color: slateBg; border.color: borderSlate; radius: 4 }
+                        }
 
                         Text { text: root.getTxt("prefix_executor_lbl"); color: textSilver; font.pixelSize: 11 }
                         TextField {
@@ -363,12 +375,28 @@ Rectangle {
                             color: textSilver
                             background: Rectangle { color: slateBg; border.color: borderSlate; radius: 4 }
                         }
+                        Text { text: backend.appLanguage === "ar" ? "مسار Executor المخصص:" : "Executor Path:"; color: textSilver; font.pixelSize: 11 }
+                        TextField {
+                            id: pathExecutorInput
+                            Layout.fillWidth: true
+                            color: textSilver
+                            placeholderText: backend.appLanguage === "ar" ? "الافتراضي (مجلد المشروع)" : "Default (Project folder)"
+                            background: Rectangle { color: slateBg; border.color: borderSlate; radius: 4 }
+                        }
 
                         Text { text: root.getTxt("prefix_treedoc_lbl"); color: textSilver; font.pixelSize: 11 }
                         TextField {
                             id: prefixTreedocInput
                             Layout.fillWidth: true
                             color: textSilver
+                            background: Rectangle { color: slateBg; border.color: borderSlate; radius: 4 }
+                        }
+                        Text { text: backend.appLanguage === "ar" ? "مسار TreeDoc المخصص:" : "TreeDoc Path:"; color: textSilver; font.pixelSize: 11 }
+                        TextField {
+                            id: pathTreedocInput
+                            Layout.fillWidth: true
+                            color: textSilver
+                            placeholderText: backend.appLanguage === "ar" ? "الافتراضي (مجلد المشروع)" : "Default (Project folder)"
                             background: Rectangle { color: slateBg; border.color: borderSlate; radius: 4 }
                         }
                     }
@@ -380,7 +408,10 @@ Rectangle {
                             backend.set_setting("prefix_builder", prefixBuilderInput.text.trim())
                             backend.set_setting("prefix_executor", prefixExecutorInput.text.trim())
                             backend.set_setting("prefix_treedoc", prefixTreedocInput.text.trim())
-                            backend.notificationSent(backend.appLanguage === "ar" ? "تم الحفظ" : "Prefixes Saved", backend.appLanguage === "ar" ? "تم تحديث البادئات الآمنة لتطبيقات المطور بنجاح." : "Security prefixes updated in the engine store.", "success")
+                            backend.set_setting("path_builder", pathBuilderInput.text.trim())
+                            backend.set_setting("path_executor", pathExecutorInput.text.trim())
+                            backend.set_setting("path_treedoc", pathTreedocInput.text.trim())
+                            backend.notificationSent(backend.appLanguage === "ar" ? "تم الحفظ" : "Prefixes & Paths Saved", backend.appLanguage === "ar" ? "تم تحديث البادئات والمسارات المخصصة بنجاح." : "Security prefixes and custom paths updated successfully.", "success")
                         }
                     }
                 }
@@ -449,6 +480,14 @@ Rectangle {
                                 model: ["clean", "raw", "custom"]
                                 Layout.fillWidth: true
                                 onActivated: root.saveSetting("file_naming_pattern", currentText)
+                            }
+
+                            Text { text: backend.appLanguage === "ar" ? "أمان المسارات المطلقة:" : "Absolute Path Security:"; color: textSilver; font.pixelSize: 11 }
+                            ComboBox {
+                                id: absPathCombo
+                                model: ["convert", "warn", "prevent"]
+                                Layout.fillWidth: true
+                                onActivated: root.saveSetting("absolute_path_handling", currentText)
                             }
 
                             Text { 

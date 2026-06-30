@@ -1,10 +1,32 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 Rectangle {
     id: monitorScreen
     color: "transparent"
+
+    FileDialog {
+        id: webpageFileDialog
+        title: backend.appLanguage === "ar" ? "اختر صفحة ويب محفوظة (.html, .htm)" : "Select Saved Webpage (.html, .htm)"
+        nameFilters: [ "HTML files (*.html *.htm)" ]
+        onAccepted: {
+            var urlStr = webpageFileDialog.selectedFile.toString();
+            var path = "";
+            if (urlStr.indexOf("file:///") === 0) {
+                if (Qt.platform.os === "windows") {
+                    path = urlStr.substring(8);
+                } else {
+                    path = urlStr.substring(7);
+                }
+            } else {
+                path = urlStr;
+            }
+            path = decodeURIComponent(path);
+            backend.process_saved_webpage(path, backend.activeProject)
+        }
+    }
 
     // Dictionary of localizations
     function getTxt(key) {
@@ -315,6 +337,86 @@ Rectangle {
                     contentItem: Text {
                         text: tabBtn.text
                         color: tabBtn.checked ? metallicGold : textSilver
+                        font.bold: true
+                        font.pixelSize: 11
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+            }
+
+            Spacer { Layout.fillWidth: true }
+
+            RowLayout {
+                spacing: 8
+
+                // Process saved webpage
+                Button {
+                    id: processWebBtn
+                    text: backend.appLanguage === "ar" ? "🌐 معالجة صفحة ويب" : "🌐 Process Webpage"
+                    implicitHeight: 34
+                    onClicked: webpageFileDialog.open()
+                    background: Rectangle {
+                        color: "#0F172A"
+                        border.color: "#3B82F6"
+                        border.width: 1
+                        radius: 6
+                    }
+                    contentItem: Text {
+                        text: processWebBtn.text
+                        color: "#60A5FA"
+                        font.bold: true
+                        font.pixelSize: 11
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+
+                // Copy Logs
+                Button {
+                    id: copyLogsBtn
+                    text: backend.appLanguage === "ar" ? "📋 نسخ السجلات" : "📋 Copy Logs"
+                    implicitHeight: 34
+                    onClicked: {
+                        var success = backend.copy_logs_to_clipboard()
+                        if (success) {
+                            backend.notificationSent(backend.appLanguage === "ar" ? "تم النسخ" : "Copied", backend.appLanguage === "ar" ? "تم نسخ سجلات العمليات بنجاح." : "Event log copied to clipboard successfully.", "success")
+                        }
+                    }
+                    background: Rectangle {
+                        color: "#0F172A"
+                        border.color: "#10B981"
+                        border.width: 1
+                        radius: 6
+                    }
+                    contentItem: Text {
+                        text: copyLogsBtn.text
+                        color: "#34D399"
+                        font.bold: true
+                        font.pixelSize: 11
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+
+                // Clear Logs
+                Button {
+                    id: clearLogsBtn
+                    text: backend.appLanguage === "ar" ? "🧹 مسح السجلات" : "🧹 Clear Logs"
+                    implicitHeight: 34
+                    onClicked: {
+                        backend.clear_logs()
+                        backend.notificationSent(backend.appLanguage === "ar" ? "تم تنظيف السجلات" : "Logs Cleared", backend.appLanguage === "ar" ? "تم تفريغ وحذف سجلات الأحداث من قاعدة البيانات." : "Log history has been cleared from SQLite.", "info")
+                    }
+                    background: Rectangle {
+                        color: "#0F172A"
+                        border.color: "#EF4444"
+                        border.width: 1
+                        radius: 6
+                    }
+                    contentItem: Text {
+                        text: clearLogsBtn.text
+                        color: "#F87171"
                         font.bold: true
                         font.pixelSize: 11
                         horizontalAlignment: Text.AlignHCenter

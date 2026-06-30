@@ -36,9 +36,23 @@ class ClipboardServiceServer(QObject):
         self.clients = []
         
         # Clipboard reference
+        try:
+            import pyperclip
+            self.pyperclip_available = True
+        except ImportError:
+            self.pyperclip_available = False
+
         self.clipboard = QGuiApplication.clipboard()
         self.clipboard.dataChanged.connect(self.on_clipboard_changed)
         self.last_text = ""
+
+        # Setup 1-second timer to poll pyperclip as a background fallback
+        if self.pyperclip_available:
+            self.poll_timer = QTimer(self)
+            self.poll_timer.setInterval(1000)
+            self.poll_timer.timeout.connect(self.poll_pyperclip)
+            self.poll_timer.start()
+            print("pyperclip background polling active")
 
         # Remove previous instances of the local server if any
         QLocalServer.removeServer("GoldenClipboardService")
@@ -50,6 +64,48 @@ class ClipboardServiceServer(QObject):
         else:
             print(f"QLocalServer failed to listen: {self.server.errorString()}")
             self.db.log_action("error", f"🔴 خدمة الخلفية: فشل بدء قناة الاتصال: {self.server.errorString()}")
+
+    def poll_pyperclip(self):
+        try:
+            import pyperclip
+            text = pyperclip.paste()
+            if text and text != self.last_text:
+                self.process_clipboard_text(text)
+        except Exception as e:
+            print(f"Error polling pyperclip: {e}")
+
+    def on_clipboard_changed(self):
+        try:
+            text = self.clipboard.text()
+            if text and text != self.last_text:
+                self.process_clipboard_text(text)
+        except Exception as e:
+            print(f"Error reading Qt clipboard: {e}")
+
+    def process_clipboard_text(self, text):
+        if not text or text == self.last_text:
+            return
+        self.last_text = text
+        
+        # Check for directive
+        is_builder = "@builder" in text
+        is_executor = "@executor" in text
+        is_treedoc = "@treedoc" in text
+        
+        if is_builder or is_executor or is_treedoc:
+            print(f"Background service captured directive text: {text[:60]}")
+            self.db.log_action("success", f"🤖 خدمة الخلفية: تم كشف توجيه نشط في الحافظة وتخزينه تلقائياً.")
+            
+            # Insert capturing log
+            title = f"Background Directive: {text[:35]}..." if len(text) > 35 else f"Background Directive: {text}"
+            self.db.add_capture(title, text, "clip_code", "", "gold")
+            
+            # Broadcast detection to all GUI clients
+            self.broadcast({
+                "event": "directive_detected",
+                "message": "تم التقاط حزمة توجيهات برمجية في الخلفية تلقائياً!",
+                "text": text
+            })
 
     def on_new_connection(self):
         socket = self.server.nextPendingConnection()
@@ -105,35 +161,6 @@ class ClipboardServiceServer(QObject):
             except Exception as e:
                 print(f"Failed to send to client, removing: {e}")
                 self.clients.remove(client)
-
-    def on_clipboard_changed(self):
-        try:
-            text = self.clipboard.text()
-            if not text or text == self.last_text:
-                return
-            self.last_text = text
-            
-            # Check for directive
-            is_builder = "@builder" in text
-            is_executor = "@executor" in text
-            is_treedoc = "@treedoc" in text
-            
-            if is_builder or is_executor or is_treedoc:
-                print(f"Background service captured directive text: {text[:60]}")
-                self.db.log_action("success", f"🤖 خدمة الخلفية: تم كشف توجيه نشط في الحافظة وتخزينه تلقائياً.")
-                
-                # Insert capturing log
-                title = f"Background Directive: {text[:35]}..." if len(text) > 35 else f"Background Directive: {text}"
-                self.db.add_capture(title, text, "clip_code", "", "gold")
-                
-                # Broadcast detection to all GUI clients
-                self.broadcast({
-                    "event": "directive_detected",
-                    "message": "تم التقاط حزمة توجيهات برمجية في الخلفية تلقائياً!",
-                    "text": text
-                })
-        except Exception as e:
-            print(f"Error reading clipboard in background service: {e}")
 
 
 # --- Traditional Windows NT Service Implementation ---

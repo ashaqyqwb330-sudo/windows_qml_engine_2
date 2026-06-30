@@ -9,11 +9,33 @@ import subprocess
 import urllib.request
 import urllib.error
 import threading
+import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from PySide6.QtCore import QObject, Slot, Signal, Property, QTimer
 from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtGui import QGuiApplication
 from db_manager import DatabaseManager
+
+# Setup global rotating logger
+log_dir = os.path.join(os.path.expanduser("~"), ".goldenplatform")
+try:
+    os.makedirs(log_dir, exist_ok=True)
+except Exception:
+    log_dir = "."
+log_file = os.path.join(log_dir, "golden_engine.log")
+
+logger = logging.getLogger("GoldenEngine")
+logger.setLevel(logging.DEBUG)
+if not logger.handlers:
+    try:
+        handler = RotatingFileHandler(log_file, maxBytes=1024*1024, backupCount=5, encoding="utf-8")
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.info("Golden Engine Logger initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing logging: {e}")
 
 class EngineBackend(QObject):
     # Core Signals
@@ -700,6 +722,60 @@ class EngineBackend(QObject):
 
     # --- Extractor Processing Logic (Supports up to 50MB) ---
     @Slot(str, str)
+    def process_saved_webpage(self, file_path, project_name):
+        try:
+            if not os.path.exists(file_path):
+                self.processingFinished.emit(False, "❌ الملف غير موجود!", "")
+                return
+            
+            self.logAdded.emit("info", f"🌐 جاري معالجة صفحة الويب المحفوظة: {os.path.basename(file_path)}")
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            # 1. Search for existing @builder / @executor directives inside the HTML comments or body
+            if "@builder" in content or "@executor" in content:
+                self.logAdded.emit("info", "🎯 تم اكتشاف توجيهات برمجية مسبقة في صفحة الويب. جاري معالجتها...")
+                self.process_text_directives_for_project(content, project_name)
+                return
+
+            # 2. Parse the HTML using regex (safe, standard library, no external BeautifulSoup dependency)
+            # Find all <style> blocks
+            style_blocks = re.findall(r'<style[^>]*>(.*?)</style>', content, re.DOTALL | re.IGNORECASE)
+            # Find all <script> blocks
+            script_blocks = re.findall(r'<script[^>]*>(.*?)</script>', content, re.DOTALL | re.IGNORECASE)
+
+            # Clean HTML by removing style and script contents to make a clean template
+            cleaned_html = content
+            cleaned_html = re.sub(r'<style[^>]*>.*?</style>', '<!-- Extracted Styles -->\n<link rel="stylesheet" href="style.css">', cleaned_html, flags=re.DOTALL | re.IGNORECASE)
+            cleaned_html = re.sub(r'<script[^>]*>.*?</script>', '<!-- Extracted Scripts -->\n<script src="app.js"></script>', cleaned_html, flags=re.DOTALL | re.IGNORECASE)
+
+            css_content = "\n\n/* --- Extracted Style Block --- */\n".join(style_blocks).strip()
+            if not css_content:
+                css_content = "/* Golden Platform - No inline styles found */\nbody {\n    font-family: sans-serif;\n}"
+
+            js_content = "\n\n// --- Extracted Script Block ---\n".join(script_blocks).strip()
+            if not js_content:
+                js_content = "// Golden Platform - No inline scripts found\nconsole.log('Page loaded successfully.');"
+
+            # Create @builder package
+            builder_package = f"""// @builder:file index.html
+{cleaned_html}
+// @builder:end
+
+// @builder:file style.css
+{css_content}
+// @builder:end
+
+// @builder:file app.js
+{js_content}
+// @builder:end
+"""
+            self.logAdded.emit("success", "📦 تم تحويل صفحة الويب وتفكيكها إلى ملفات (index.html, style.css, app.js) بنجاح.")
+            self.process_text_directives_for_project(builder_package, project_name)
+        except Exception as e:
+            self.processingFinished.emit(False, f"❌ خطأ أثناء معالجة صفحة الويب: {str(e)}", "")
+
+    @Slot(str, str)
     def process_text_directives_for_project(self, text, project_name):
         if not text or not text.strip():
             self.processingFinished.emit(False, "⚠️ النص المدخل فارغ!", "")
@@ -713,6 +789,44 @@ class EngineBackend(QObject):
             return
 
         self._process_text_directives_standard(text, project_name)
+
+    def get_base_dir_for_prefix(self, prefix, project_dir):
+        # Custom paths for prefixes
+        if prefix == "@builder":
+            custom = self.db.get_setting("path_builder", "")
+            return custom if custom and os.path.exists(custom) else project_dir
+        elif prefix == "@executor":
+            custom = self.db.get_setting("path_executor", "")
+            return custom if custom and os.path.exists(custom) else project_dir
+        elif prefix == "@treedoc":
+            custom = self.db.get_setting("path_treedoc", "")
+            return custom if custom and os.path.exists(custom) else project_dir
+        return project_dir
+
+    def sanitize_path(self, filepath, project_dir):
+        handling = self.db.get_setting("absolute_path_handling", "convert")
+        
+        # Normalize slashes
+        filepath = filepath.replace("\\", "/")
+        
+        is_abs = os.path.isabs(filepath) or filepath.startswith("/") or (len(filepath) > 1 and filepath[1] == ":")
+        
+        if is_abs:
+            if handling == "prevent":
+                raise ValueError(f"⚠️ تم منع استخدام المسار المطلق: {filepath}")
+            elif handling == "warn":
+                self.logAdded.emit("warning", f"⚠️ تحذير: تم استخدام مسار مطلق: {filepath}")
+                return os.path.normpath(filepath)
+            else:  # convert (default)
+                if len(filepath) > 1 and filepath[1] == ":":
+                    rel_path = filepath[2:]
+                else:
+                    rel_path = filepath
+                rel_path = rel_path.lstrip("/")
+                self.logAdded.emit("info", f"🔄 تحويل المسار المطلق إلى نسبي: {rel_path}")
+                return os.path.normpath(os.path.join(project_dir, rel_path))
+        else:
+            return os.path.normpath(os.path.join(project_dir, filepath))
 
     def _process_text_directives_standard(self, text, project_name="الافتراضي"):
         lines = text.splitlines()
@@ -736,12 +850,23 @@ class EngineBackend(QObject):
         prefix_builder = self.db.get_setting("prefix_builder", "@builder")
         prefix_executor = self.db.get_setting("prefix_executor", "@executor")
 
+        builder_dir = self.get_base_dir_for_prefix("@builder", project_dir)
+        executor_dir = self.get_base_dir_for_prefix("@executor", project_dir)
+
         for line in lines:
             trimmed = line.strip()
             
-            is_builder_file = f"{prefix_builder}:file" in trimmed or "@builder:file" in trimmed
-            is_builder_end = f"{prefix_builder}:end" in trimmed or "@builder:end" in trimmed
-            is_executor = f"{prefix_executor}:" in trimmed or "@executor:" in trimmed
+            # Clean comments
+            cleaned_line = trimmed
+            for style in ["//", "#", "/*", "*/", "<!--", "-->", "--"]:
+                if cleaned_line.startswith(style):
+                    cleaned_line = cleaned_line[len(style):].strip()
+                if cleaned_line.endswith(style):
+                    cleaned_line = cleaned_line[:-len(style)].strip()
+
+            is_builder_file = f"{prefix_builder}:file" in cleaned_line or "@builder:file" in cleaned_line
+            is_builder_end = f"{prefix_builder}:end" in cleaned_line or "@builder:end" in cleaned_line
+            is_executor = f"{prefix_executor}:" in cleaned_line or "@executor:" in cleaned_line
 
             # Check @builder:file directive
             if is_builder_file:
@@ -756,11 +881,16 @@ class EngineBackend(QObject):
                     current_content = []
 
                 pattern = rf"(?:{re.escape(prefix_builder)}|@builder):file\s+(\S+)"
-                match = re.search(pattern, trimmed)
+                match = re.search(pattern, cleaned_line)
                 if match:
                     current_rel_path = match.group(1)
-                    current_file_path = os.path.join(project_dir, current_rel_path)
-                    self.logAdded.emit("info", f"📄 جاري إنشاء ملف: {current_rel_path}")
+                    try:
+                        current_file_path = self.sanitize_path(current_rel_path, builder_dir)
+                        self.logAdded.emit("info", f"📄 جاري إنشاء ملف: {current_rel_path}")
+                    except ValueError as ve:
+                        self.logAdded.emit("error", str(ve))
+                        errors.append(str(ve))
+                        current_file_path = None
                 else:
                     errors.append(f"توجيه {prefix_builder}:file غير صالح أو مفقود المسار.")
 
@@ -780,13 +910,13 @@ class EngineBackend(QObject):
 
             # Check @executor directive
             elif is_executor:
-                if f"{prefix_executor}:" in trimmed:
-                    cmd = trimmed.split(f"{prefix_executor}:", 1)[1].strip()
+                if f"{prefix_executor}:" in cleaned_line:
+                    cmd = cleaned_line.split(f"{prefix_executor}:", 1)[1].strip()
                 else:
-                    cmd = trimmed.split("@executor:", 1)[1].strip()
+                    cmd = cleaned_line.split("@executor:", 1)[1].strip()
                 if cmd:
                     self.logAdded.emit("info", f"⚙️ جاري التحقق من سلامة وتنفيذ الأمر: {cmd}")
-                    success, output = self._run_safe_command_with_dir(cmd, project_dir)
+                    success, output = self._run_safe_command_with_dir(cmd, executor_dir)
                     executed_commands.append(f"Command: {cmd}\nOutput:\n{output}")
                     if success:
                         self.db.log_action("success", f"نجح التنفيذ الآمن: {cmd}")
@@ -2948,8 +3078,31 @@ class EngineBackend(QObject):
         try:
             self.db.log_action(log_type, message)
             self.dbUpdated.emit()
+            if log_type == "error":
+                logger.error(message)
+            elif log_type == "warning":
+                logger.warning(message)
+            else:
+                logger.info(message)
         except Exception as e:
             print(f"Error logging action: {e}")
+
+    @Slot(result=bool)
+    def copy_logs_to_clipboard(self):
+        try:
+            logs = self.db.get_logs()
+            lines = []
+            for log in logs:
+                lines.append(f"[{log['created_at']}] [{log['type'].upper()}] [{log['category']}] {log['message']}")
+            text = "\n".join(lines)
+            from PySide6.QtGui import QGuiApplication
+            clipboard = QGuiApplication.clipboard()
+            clipboard.setText(text)
+            self.logAdded.emit("success", "📋 تم نسخ جميع سجلات الأحداث إلى الحافظة!")
+            return True
+        except Exception as e:
+            print(f"Error copying logs to clipboard: {e}")
+            return False
 
     @Slot(str, result=str)
     def read_file_text(self, path):
