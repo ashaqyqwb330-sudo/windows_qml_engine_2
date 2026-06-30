@@ -17,6 +17,12 @@ class TestEngineBackend(unittest.TestCase):
         self.db_path = os.path.join(self.temp_dir.name, "test_golden.db")
         self.db = DatabaseManager(self.temp_dir.name)
         
+        # Patch QGuiApplication.clipboard to return a mock to avoid headless display errors
+        self.mock_clipboard = MagicMock()
+        self.mock_clipboard.text.return_value = ""
+        self.clipboard_patcher = patch('PySide6.QtGui.QGuiApplication.clipboard', return_value=self.mock_clipboard)
+        self.clipboard_patcher.start()
+
         # Patch QObject and signals for test environment
         with patch('PySide6.QtCore.QObject.__init__'):
             self.backend = EngineBackend()
@@ -25,6 +31,7 @@ class TestEngineBackend(unittest.TestCase):
             self.backend._base_dir = self.temp_dir.name
 
     def tearDown(self):
+        self.clipboard_patcher.stop()
         self.temp_dir.cleanup()
 
     def test_get_base_dir_for_prefix_default(self):

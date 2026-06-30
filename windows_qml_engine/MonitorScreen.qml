@@ -457,7 +457,7 @@ Rectangle {
                             text: ""
                             color: textSilver
                             font.bold: true
-                            font.pixelSize: 11.5
+                            font.pixelSize: 11
                         }
                         Spacer { Layout.fillWidth: true }
                         Button {
@@ -486,7 +486,7 @@ Rectangle {
                         placeholderText: backend.appLanguage === "ar" ? "ألصق التوجيهات البرمجية أو أكواد @builder هنا لتنقيبها وبنائها تلقائياً..." : "Paste script directives or @builder code packs here to process and write structure instantly..."
                         color: textSilver
                         font.family: "Consolas"
-                        font.pixelSize: 11.5
+                        font.pixelSize: 11
                         background: Rectangle {
                             color: cardSlateBg
                             border.color: borderSlate
@@ -708,7 +708,7 @@ Rectangle {
                                         text: model.title
                                         color: textSilver
                                         font.bold: true
-                                        font.pixelSize: 11.5
+                                        font.pixelSize: 11
                                     }
                                     Rectangle {
                                         color: model.status === "completed" ? "#10B981" : (model.status === "running" ? "#3B82F6" : (model.status === "failed" ? "#EF4444" : "#F59E0B"))
@@ -1021,7 +1021,7 @@ Rectangle {
                 TextArea {
                     id: taskLogsOutput
                     font.family: "Consolas"
-                    font.pixelSize: 10.5
+                    font.pixelSize: 10
                     color: textSilver
                     readOnly: true
                     background: Rectangle { color: slateBg; border.color: borderSlate; radius: 6 }
@@ -1089,7 +1089,7 @@ Rectangle {
             Text {
                 id: fileEditorPath
                 color: textGray
-                font.pixelSize: 9.5
+                font.pixelSize: 9
                 elide: Text.ElideMiddle
                 Layout.fillWidth: true
             }
