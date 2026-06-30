@@ -652,7 +652,7 @@ Rectangle {
                                 }
                                 TextField {
                                     id: organizeFolderPath
-                                    text: backend._base_dir
+                                    text: backend.baseDir
                                     placeholderText: "e.g. C:/Projects"
                                     Layout.fillWidth: true
                                 }
@@ -719,7 +719,7 @@ Rectangle {
                                 }
                                 TextField {
                                     id: renameFolderPath
-                                    text: backend._base_dir
+                                    text: backend.baseDir
                                     placeholderText: "e.g. C:/Photos"
                                     Layout.fillWidth: true
                                 }

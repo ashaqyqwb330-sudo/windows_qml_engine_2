@@ -122,10 +122,10 @@ Rectangle {
                 // Repaint Canvas
                 chartCanvas.requestPaint();
             } else {
-                backend.notificationSent.emit("فشل المسح", data.message, "warning");
+                backend.notificationSent("فشل المسح", data.message, "warning");
             }
         } catch(e) {
-            backend.notificationSent.emit("فشل التحليل", "حدث خطأ في قراءة البيانات: " + e.message, "warning");
+            backend.notificationSent("فشل التحليل", "حدث خطأ في قراءة البيانات: " + e.message, "warning");
         }
     }
 
@@ -947,7 +947,7 @@ Rectangle {
                             onClicked: {
                                 if (root.selectedItem) {
                                     backend.set_clipboard_text(root.selectedItem.path);
-                                    backend.notificationSent.emit("مسار الملف", "تم نسخ مسار الملف للحافظة بنجاح.", "success");
+                                    backend.notificationSent("مسار الملف", "تم نسخ مسار الملف للحافظة بنجاح.", "success");
                                 }
                             }
                         }

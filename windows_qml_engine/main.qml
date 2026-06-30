@@ -247,7 +247,9 @@ ApplicationWindow {
             }
         } catch(e) { console.log("Storyteller load error:", e) }
         
-        geminiApiKeyInput.text = backend.get_gemini_api_key()
+        if (typeof geminiApiKeyInput !== "undefined") {
+            geminiApiKeyInput.text = backend.get_gemini_api_key()
+        }
         canvasChart.requestPaint()
     }
 
@@ -364,8 +366,7 @@ ApplicationWindow {
     }
 
     // Frameless Golden Bubble Overlay Drawer (Interactive quick controls)
-    resources: [
-        Window {
+    Window {
             id: bubbleOverlay
         width: expanded ? 340 : 255
         height: expanded ? 480 : 185
@@ -475,8 +476,18 @@ ApplicationWindow {
                         id: headerDragArea
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        drag.target: bubbleOverlay
-                        drag.axis: Drag.XAndYAxis
+
+                        property point clickPos: "0,0"
+
+                        onPressed: (mouse) => {
+                            clickPos = Qt.point(mouse.x, mouse.y)
+                        }
+
+                        onPositionChanged: (mouse) => {
+                            var delta = Qt.point(mouse.x - clickPos.x, mouse.y - clickPos.y)
+                            bubbleOverlay.x += delta.x
+                            bubbleOverlay.y += delta.y
+                        }
 
                         RowLayout {
                             anchors.fill: parent
@@ -957,7 +968,6 @@ ApplicationWindow {
             }
         }
     }
-]
 
     // Top Header Navigation Bar
     Rectangle {
@@ -1284,6 +1294,7 @@ ApplicationWindow {
 
             // TAB 0: Extractor / Code Parser / Intelligent Monitor
             MonitorScreen {
+                id: monitorScreenView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
             }
@@ -2196,8 +2207,8 @@ ApplicationWindow {
         }
 
         function onClipboardBuilderDetected(text) {
-            clipboardBannerText.text = backend.appLanguage === "ar" ? "📋 تم كشف حزمة بناء برمجية صالحة في الحافظة! انقر للمعالجة." : "📋 Valid builder package detected in clipboard! Click to process."
-            clipboardBannerRect.tagText = text
+            monitorScreenView.clipboardBannerTextValue = backend.appLanguage === "ar" ? "📋 تم كشف حزمة بناء برمجية صالحة في الحافظة! انقر للمعالجة." : "📋 Valid builder package detected in clipboard! Click to process."
+            monitorScreenView.clipboardBannerTagText = text
         }
 
         function onGeminiResponse(success, reply) {

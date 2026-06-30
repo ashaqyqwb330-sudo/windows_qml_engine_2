@@ -290,10 +290,10 @@ Rectangle {
                                 root.resultPreview = res.preview;
                                 root.hasResults = true;
                             } else {
-                                backend.notificationSent.emit("خطأ التصدير", res.message, "warning");
+                                backend.notificationSent("خطأ التصدير", res.message, "warning");
                             }
                         } catch(e) {
-                            backend.notificationSent.emit("خطأ التصدير", "فشل تحليل التقرير: " + e.message, "warning");
+                            backend.notificationSent("خطأ التصدير", "فشل تحليل التقرير: " + e.message, "warning");
                         }
                     }
                 }
@@ -453,7 +453,7 @@ Rectangle {
                                     var resultStr = backend.get_clipboard_text(); // Or read the file directly
                                     // Since it's already copied during export, this is a friendly reinforcement or backup recopy from clipboard
                                     backend.set_clipboard_text(backend.get_clipboard_text()); 
-                                    backend.notificationSent.emit("نسخ الكود", "تمت إعادة نسخ الكود المصدري للحافظة بنجاح.", "success");
+                                    backend.notificationSent("نسخ الكود", "تمت إعادة نسخ الكود المصدري للحافظة بنجاح.", "success");
                                 }
                             }
                         }

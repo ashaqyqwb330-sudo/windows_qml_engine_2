@@ -37,7 +37,10 @@ class TestEngineBackend(unittest.TestCase):
 
     def tearDown(self):
         self.clipboard_patcher.stop()
-        self.temp_dir.cleanup()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_get_base_dir_for_prefix_default(self):
         """Test that default prefix paths fall back to the project root directory."""

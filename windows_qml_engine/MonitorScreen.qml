@@ -7,6 +7,9 @@ Rectangle {
     id: monitorScreen
     color: "transparent"
 
+    property alias clipboardBannerTextValue: clipboardBannerText.text
+    property alias clipboardBannerTagText: clipboardBannerRect.tagText
+
     FileDialog {
         id: webpageFileDialog
         title: backend.appLanguage === "ar" ? "اختر صفحة ويب محفوظة (.html, .htm)" : "Select Saved Webpage (.html, .htm)"
@@ -440,6 +443,7 @@ Rectangle {
 
                 // Dynamic floating Clipboard Builder banner overlay
                 Rectangle {
+                    id: clipboardBannerRect
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
                     color: borderSlate

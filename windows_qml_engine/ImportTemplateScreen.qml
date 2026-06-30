@@ -358,7 +358,7 @@ Popup {
                             width: parent.width - 15
                             spacing: 8
                             delegate: Rectangle {
-                                width: parent.width
+                                width: folderListView.width
                                 height: 95
                                 color: cardSlateBg
                                 border.color: borderSlate
@@ -385,7 +385,7 @@ Popup {
                                                 font.pixelSize: 10
                                                 Layout.fillWidth: true
                                                 background: Rectangle { color: slateBg; radius: 4; border.color: borderSlate }
-                                                onTextChanged: visualFoldersModel.setProperty(index, "name_ar", text)
+                                                onTextEdited: visualFoldersModel.setProperty(index, "name_ar", text)
                                             }
                                         }
 
@@ -398,7 +398,7 @@ Popup {
                                                 font.pixelSize: 10
                                                 Layout.fillWidth: true
                                                 background: Rectangle { color: slateBg; radius: 4; border.color: borderSlate }
-                                                onTextChanged: visualFoldersModel.setProperty(index, "path_en", text)
+                                                onTextEdited: visualFoldersModel.setProperty(index, "path_en", text)
                                             }
                                         }
 
@@ -411,7 +411,7 @@ Popup {
                                                 font.pixelSize: 10
                                                 Layout.fillWidth: true
                                                 background: Rectangle { color: slateBg; radius: 4; border.color: borderSlate }
-                                                onTextChanged: visualFoldersModel.setProperty(index, "file_types", text)
+                                                onTextEdited: visualFoldersModel.setProperty(index, "file_types", text)
                                             }
                                         }
 
@@ -424,7 +424,7 @@ Popup {
                                                 font.pixelSize: 10
                                                 Layout.fillWidth: true
                                                 background: Rectangle { color: slateBg; radius: 4; border.color: borderSlate }
-                                                onTextChanged: visualFoldersModel.setProperty(index, "keywords", text)
+                                                onTextEdited: visualFoldersModel.setProperty(index, "keywords", text)
                                             }
                                         }
                                     }
@@ -619,7 +619,7 @@ Popup {
                 onClicked: {
                     if (projectNameInput.text.trim() === "") {
                         backend.log_action("error", "فشل البناء: يجب تزويد اسم للمشروع");
-                        backend.notificationSent.emit("خطأ البناء", "يرجى كتابة اسم للمشروع أولاً.", "warning");
+                        backend.notificationSent("خطأ البناء", "يرجى كتابة اسم للمشروع أولاً.", "warning");
                         return;
                     }
                     
@@ -627,7 +627,7 @@ Popup {
                         syncVisualToJson();
                     } else {
                         if (!syncJsonToVisual()) {
-                            backend.notificationSent.emit("خطأ JSON", "يرجى تصحيح أخطاء JSON أولاً.", "warning");
+                            backend.notificationSent("خطأ JSON", "يرجى تصحيح أخطاء JSON أولاً.", "warning");
                             return;
                         }
                     }
@@ -640,7 +640,7 @@ Popup {
                         activateProject(projectNameInput.text.trim());
                         importDialog.close();
                     } else {
-                        backend.notificationSent.emit("خطأ الاستيراد", result.message, "warning");
+                        backend.notificationSent("خطأ الاستيراد", result.message, "warning");
                     }
                 }
             }

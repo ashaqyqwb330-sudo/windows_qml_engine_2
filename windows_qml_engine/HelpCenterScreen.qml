@@ -365,7 +365,7 @@ Rectangle {
                     Rectangle {
                         id: faqCard1
                         Layout.fillWidth: true
-                        Layout.preferredHeight: expanded ? childrenRect.height + 20 : 50
+                        Layout.preferredHeight: expanded ? faqCard1Col.implicitHeight + 24 : 50
                         color: cardSlateBg
                         border.color: borderSlate
                         radius: 8
@@ -374,6 +374,7 @@ Rectangle {
                         Behavior on Layout.preferredHeight { NumberAnimation { duration: 200 } }
 
                         ColumnLayout {
+                            id: faqCard1Col
                             width: parent.width - 24
                             anchors.top: parent.top
                             anchors.topMargin: 12
@@ -406,7 +407,7 @@ Rectangle {
                     Rectangle {
                         id: faqCard2
                         Layout.fillWidth: true
-                        Layout.preferredHeight: expanded ? childrenRect.height + 20 : 50
+                        Layout.preferredHeight: expanded ? faqCard2Col.implicitHeight + 24 : 50
                         color: cardSlateBg
                         border.color: borderSlate
                         radius: 8
@@ -415,6 +416,7 @@ Rectangle {
                         Behavior on Layout.preferredHeight { NumberAnimation { duration: 200 } }
 
                         ColumnLayout {
+                            id: faqCard2Col
                             width: parent.width - 24
                             anchors.top: parent.top
                             anchors.topMargin: 12
@@ -447,7 +449,7 @@ Rectangle {
                     Rectangle {
                         id: faqCard3
                         Layout.fillWidth: true
-                        Layout.preferredHeight: expanded ? childrenRect.height + 20 : 50
+                        Layout.preferredHeight: expanded ? faqCard3Col.implicitHeight + 24 : 50
                         color: cardSlateBg
                         border.color: borderSlate
                         radius: 8
@@ -456,6 +458,7 @@ Rectangle {
                         Behavior on Layout.preferredHeight { NumberAnimation { duration: 200 } }
 
                         ColumnLayout {
+                            id: faqCard3Col
                             width: parent.width - 24
                             anchors.top: parent.top
                             anchors.topMargin: 12
@@ -488,7 +491,7 @@ Rectangle {
                     Rectangle {
                         id: faqCard4
                         Layout.fillWidth: true
-                        Layout.preferredHeight: expanded ? childrenRect.height + 20 : 50
+                        Layout.preferredHeight: expanded ? faqCard4Col.implicitHeight + 24 : 50
                         color: cardSlateBg
                         border.color: borderSlate
                         radius: 8
@@ -497,6 +500,7 @@ Rectangle {
                         Behavior on Layout.preferredHeight { NumberAnimation { duration: 200 } }
 
                         ColumnLayout {
+                            id: faqCard4Col
                             width: parent.width - 24
                             anchors.top: parent.top
                             anchors.topMargin: 12

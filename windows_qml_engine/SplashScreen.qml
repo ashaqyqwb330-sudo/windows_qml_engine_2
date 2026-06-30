@@ -29,7 +29,6 @@ Rectangle {
     ColumnLayout {
         anchors.centerIn: parent
         spacing: 25
-        horizontalAlignment: Text.AlignHCenter
 
         // Glowing Logo Container
         Item {
