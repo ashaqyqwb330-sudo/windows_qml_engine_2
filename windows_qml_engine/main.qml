@@ -364,8 +364,9 @@ ApplicationWindow {
     }
 
     // Frameless Golden Bubble Overlay Drawer (Interactive quick controls)
-    Window {
-        id: bubbleOverlay
+    resources: [
+        Window {
+            id: bubbleOverlay
         width: expanded ? 340 : 255
         height: expanded ? 480 : 185
         visible: backend.bubbleEnabled
@@ -955,7 +956,7 @@ ApplicationWindow {
                 }
             }
         }
-    }
+    ]
 
     // Top Header Navigation Bar
     Rectangle {
@@ -1011,7 +1012,7 @@ ApplicationWindow {
                 Text { text: "العربية"; color: backend.appLanguage === "ar" ? metallicGold : textGray; font.pixelSize: 11 }
                 Switch {
                     checked: backend.appLanguage === "en"
-                    onCheckedChanged: {
+                    onToggled: {
                         backend.appLanguage = checked ? "en" : "ar"
                     }
                 }
@@ -1264,7 +1265,7 @@ ApplicationWindow {
                             Spacer { Layout.fillWidth: true }
                             Switch {
                                 checked: backend.get_clipboard_monitor_enabled()
-                                onCheckedChanged: {
+                                onToggled: {
                                     backend.set_clipboard_monitor_enabled(checked)
                                 }
                             }
@@ -1385,6 +1386,7 @@ ApplicationWindow {
 
             // TAB 2: Smart Capture & Style Bank
             Rectangle {
+                id: captureTabContainer
                 color: "transparent"
                 
                 property string subTab: "capture" // "capture" or "style_bank"
@@ -1405,8 +1407,8 @@ ApplicationWindow {
                             implicitHeight: 32
                             implicitWidth: 150
                             checkable: true
-                            checked: subTab === "capture"
-                            onClicked: subTab = "capture"
+                            checked: captureTabContainer.subTab === "capture"
+                            onClicked: captureTabContainer.subTab = "capture"
                             background: Rectangle {
                                 color: tabCapBtn.checked ? borderSlate : "transparent"
                                 border.color: tabCapBtn.checked ? metallicGold : borderSlate
@@ -1429,8 +1431,8 @@ ApplicationWindow {
                             implicitHeight: 32
                             implicitWidth: 150
                             checkable: true
-                            checked: subTab === "style_bank"
-                            onClicked: subTab = "style_bank"
+                            checked: captureTabContainer.subTab === "style_bank"
+                            onClicked: captureTabContainer.subTab = "style_bank"
                             background: Rectangle {
                                 color: tabStyleBtn.checked ? borderSlate : "transparent"
                                 border.color: tabStyleBtn.checked ? metallicGold : borderSlate
@@ -1454,7 +1456,7 @@ ApplicationWindow {
                     StackLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        currentIndex: subTab === "capture" ? 0 : 1
+                        currentIndex: captureTabContainer.subTab === "capture" ? 0 : 1
 
                         // Sub-Tab 1: Smart Capture
                         ColumnLayout {
@@ -2026,7 +2028,7 @@ ApplicationWindow {
                                     Spacer { Layout.fillWidth: true }
                                     Switch {
                                         checked: backend.bubbleEnabled
-                                        onCheckedChanged: {
+                                        onToggled: {
                                             backend.bubbleEnabled = checked
                                             bubbleOverlay.visible = checked
                                         }

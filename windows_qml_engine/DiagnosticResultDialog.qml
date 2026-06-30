@@ -186,7 +186,7 @@ Dialog {
                         }
                         color: textSilver
                         font.family: "Consolas"
-                        font.pixelSize: 10.5
+                        font.pixelSize: 11
                         readOnly: true
                         wrapMode: Text.Wrap
                         background: null

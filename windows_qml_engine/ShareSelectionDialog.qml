@@ -147,7 +147,7 @@ Dialog {
                         text: root.textPreview
                         color: textSilver
                         font.family: "Segoe UI"
-                        font.pixelSize: 10.5
+                        font.pixelSize: 11
                         wrapMode: Text.Wrap
                         readOnly: true
                         selectByMouse: true
@@ -275,7 +275,7 @@ Dialog {
                                     text: backend.appLanguage === "ar" ? model.label_ar : model.label_en
                                     color: model.recommended ? metallicGold : textSilver
                                     font.bold: true
-                                    font.pixelSize: 11.5
+                                    font.pixelSize: 12
                                 }
 
                                 Rectangle {
@@ -297,7 +297,7 @@ Dialog {
                             Text {
                                 text: backend.appLanguage === "ar" ? model.description_ar : model.description_en
                                 color: textGray
-                                font.pixelSize: 9.5
+                                font.pixelSize: 10
                                 wrapMode: Text.Wrap
                                 Layout.fillWidth: true
                             }

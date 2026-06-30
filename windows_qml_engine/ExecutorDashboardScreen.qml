@@ -412,7 +412,7 @@ Rectangle {
                                 model: autocompleteModel
                                 spacing: 2
                                 delegate: Rectangle {
-                                    width: parent.width
+                                    width: parent ? parent.width : 0
                                     height: 36
                                     color: "transparent"
                                     
@@ -617,7 +617,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 ColumnLayout {
-                    width: parent.width
+                    width: parent ? parent.width : 0
                     spacing: 15
 
                     // Template 1: Folder Auto-Organization Card
@@ -794,7 +794,7 @@ Rectangle {
                         spacing: 8
                         clip: true
                         delegate: Rectangle {
-                            width: parent.width
+                            width: parent ? parent.width : 0
                             height: model.expanded ? 160 : 54
                             color: "#1A2230"
                             border.color: model.status === "completed" ? successGreen : errorRed

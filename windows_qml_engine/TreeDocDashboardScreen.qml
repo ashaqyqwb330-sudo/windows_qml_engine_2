@@ -540,7 +540,7 @@ Rectangle {
                                     font.bold: true
                                     font.pixelSize: 9
                                     visible: modelData.type === "directory"
-                                    implicitWidth: 12
+                                    width: 12
                                     MouseArea {
                                         anchors.fill: parent
                                         onClicked: {

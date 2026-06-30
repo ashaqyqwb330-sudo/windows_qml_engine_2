@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import json
+import time
 import base64
 import mimetypes
 import subprocess
@@ -435,6 +436,15 @@ class EngineBackend(QObject):
     def set_setting(self, key, value):
         self.db.set_setting(key, value)
         self.dbUpdated.emit()
+
+    @Slot(result=str)
+    def get_extracted_files_json(self):
+        try:
+            files = self.db.get_extracted_files()
+            return json.dumps(files, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error in get_extracted_files_json: {e}")
+            return "[]"
 
     @Slot(result=str)
     def get_bubble_stats(self):

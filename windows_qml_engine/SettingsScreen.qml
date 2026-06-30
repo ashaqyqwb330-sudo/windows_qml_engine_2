@@ -238,7 +238,7 @@ Rectangle {
                             Text { text: root.getTxt("bubble_lbl"); color: textSilver; font.pixelSize: 11 }
                             Switch {
                                 checked: backend.bubbleEnabled
-                                onCheckedChanged: {
+                                onToggled: {
                                     backend.bubbleEnabled = checked;
                                     bubbleOverlay.visible = checked;
                                 }
@@ -251,7 +251,7 @@ Rectangle {
                             Text { text: root.getTxt("clip_monitor_lbl"); color: textSilver; font.pixelSize: 11 }
                             Switch {
                                 checked: backend.get_clipboard_monitor_enabled()
-                                onCheckedChanged: {
+                                onToggled: {
                                     backend.set_clipboard_monitor_enabled(checked);
                                 }
                             }

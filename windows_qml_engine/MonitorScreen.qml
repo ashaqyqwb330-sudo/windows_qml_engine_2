@@ -150,6 +150,7 @@ Rectangle {
 
         // TOP STATS CARD with Visual Color-Coded Bar Chart
         Rectangle {
+            id: statsCard
             Layout.fillWidth: true
             height: 85
             color: cardSlateBg
@@ -157,7 +158,13 @@ Rectangle {
             border.width: 1.5
             radius: 10
 
-            property var statsObj: JSON.parse(monitorScreen.statsJson)
+            property var statsObj: {
+                try {
+                    return JSON.parse(monitorScreen.statsJson);
+                } catch(e) {
+                    return {"total":0,"success":0,"error":0,"info":0,"warning":0,"success_rate":0,"most_active":"N/A"};
+                }
+            }
 
             RowLayout {
                 anchors.fill: parent
@@ -173,7 +180,7 @@ Rectangle {
                         font.pixelSize: 10
                     }
                     Text {
-                        text: parent.parent.statsObj.total
+                        text: statsCard.statsObj ? statsCard.statsObj.total : 0
                         color: textSilver
                         font.bold: true
                         font.pixelSize: 20
@@ -189,8 +196,8 @@ Rectangle {
                         font.pixelSize: 10
                     }
                     Text {
-                        text: parent.parent.statsObj.success_rate + " %"
-                        color: parent.parent.statsObj.success_rate > 80 ? "#10B981" : "#EF4444"
+                        text: (statsCard.statsObj ? statsCard.statsObj.success_rate : 0) + " %"
+                        color: (statsCard.statsObj && statsCard.statsObj.success_rate > 80) ? "#10B981" : "#EF4444"
                         font.bold: true
                         font.pixelSize: 20
                     }
@@ -205,7 +212,7 @@ Rectangle {
                         font.pixelSize: 10
                     }
                     Text {
-                        text: parent.parent.statsObj.most_active
+                        text: statsCard.statsObj ? statsCard.statsObj.most_active : "N/A"
                         color: softGold
                         font.bold: true
                         font.pixelSize: 14
@@ -225,6 +232,7 @@ Rectangle {
 
                     // Multi-colored bar
                     Rectangle {
+                        id: barContainer
                         Layout.fillWidth: true
                         height: 12
                         color: "#232A3B"
@@ -238,25 +246,25 @@ Rectangle {
                             Rectangle {
                                 height: parent.height
                                 color: "#10B981"
-                                width: parent.width * (parent.parent.parent.parent.statsObj.total > 0 ? (parent.parent.parent.parent.statsObj.success / parent.parent.parent.parent.statsObj.total) : 0)
+                                width: parent.width * ((statsCard.statsObj && statsCard.statsObj.total > 0) ? (statsCard.statsObj.success / statsCard.statsObj.total) : 0)
                             }
                             // Error red block
                             Rectangle {
                                 height: parent.height
                                 color: "#EF4444"
-                                width: parent.width * (parent.parent.parent.parent.statsObj.total > 0 ? (parent.parent.parent.parent.statsObj.error / parent.parent.parent.parent.statsObj.total) : 0)
+                                width: parent.width * ((statsCard.statsObj && statsCard.statsObj.total > 0) ? (statsCard.statsObj.error / statsCard.statsObj.total) : 0)
                             }
                             // Info blue block
                             Rectangle {
                                 height: parent.height
                                 color: "#3B82F6"
-                                width: parent.width * (parent.parent.parent.parent.statsObj.total > 0 ? (parent.parent.parent.parent.statsObj.info / parent.parent.parent.parent.statsObj.total) : 0)
+                                width: parent.width * ((statsCard.statsObj && statsCard.statsObj.total > 0) ? (statsCard.statsObj.info / statsCard.statsObj.total) : 0)
                             }
                             // Warning gold/orange block
                             Rectangle {
                                 height: parent.height
                                 color: "#F59E0B"
-                                width: parent.width * (parent.parent.parent.parent.statsObj.total > 0 ? (parent.parent.parent.parent.statsObj.warning / parent.parent.parent.parent.statsObj.total) : 0)
+                                width: parent.width * ((statsCard.statsObj && statsCard.statsObj.total > 0) ? (statsCard.statsObj.warning / statsCard.statsObj.total) : 0)
                             }
                         }
                     }
@@ -265,13 +273,13 @@ Rectangle {
                     RowLayout {
                         spacing: 12
                         Rectangle { color: "#10B981"; radius: 4; width: 8; height: 8 }
-                        Text { text: "Success (" + parent.parent.parent.statsObj.success + ")"; color: textGray; font.pixelSize: 9 }
+                        Text { text: "Success (" + (statsCard.statsObj ? statsCard.statsObj.success : 0) + ")"; color: textGray; font.pixelSize: 9 }
                         
                         Rectangle { color: "#EF4444"; radius: 4; width: 8; height: 8 }
-                        Text { text: "Error (" + parent.parent.parent.statsObj.error + ")"; color: textGray; font.pixelSize: 9 }
+                        Text { text: "Error (" + (statsCard.statsObj ? statsCard.statsObj.error : 0) + ")"; color: textGray; font.pixelSize: 9 }
 
                         Rectangle { color: "#3B82F6"; radius: 4; width: 8; height: 8 }
-                        Text { text: "Info (" + parent.parent.parent.statsObj.info + ")"; color: textGray; font.pixelSize: 9 }
+                        Text { text: "Info (" + (statsCard.statsObj ? statsCard.statsObj.info : 0) + ")"; color: textGray; font.pixelSize: 9 }
                     }
                 }
             }

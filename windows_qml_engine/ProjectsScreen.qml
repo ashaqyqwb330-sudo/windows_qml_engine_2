@@ -345,12 +345,12 @@ Rectangle {
                     ListView {
                         id: projectsListView
                         model: projectsModel
-                        width: parent.width - 15
+                        width: parent ? parent.width - 15 : 0
                         spacing: 12
                         
                         delegate: Rectangle {
                             id: projectCard
-                            width: parent.width
+                            width: parent ? parent.width : 0
                             height: 110
                             color: "#0F131D"
                             border.color: (model.name === projectSelector.currentText) ? metallicGold : borderSlate
