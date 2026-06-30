@@ -4,6 +4,12 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+# Initialize offscreen QGuiApplication before importing engine or instantiating QObjects
+from PySide6.QtGui import QGuiApplication
+_app = QGuiApplication.instance()
+if _app is None:
+    _app = QGuiApplication(["-platform", "offscreen"])
+
 # Add current folder to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -23,12 +29,11 @@ class TestEngineBackend(unittest.TestCase):
         self.clipboard_patcher = patch('PySide6.QtGui.QGuiApplication.clipboard', return_value=self.mock_clipboard)
         self.clipboard_patcher.start()
 
-        # Patch QObject and signals for test environment
-        with patch('PySide6.QtCore.QObject.__init__'):
-            self.backend = EngineBackend()
-            # Inject our test database
-            self.backend.db = self.db
-            self.backend._base_dir = self.temp_dir.name
+        # Instantiate real EngineBackend without patching QObject.__init__
+        self.backend = EngineBackend()
+        # Inject our test database
+        self.backend.db = self.db
+        self.backend._base_dir = self.temp_dir.name
 
     def tearDown(self):
         self.clipboard_patcher.stop()

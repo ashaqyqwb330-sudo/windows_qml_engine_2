@@ -545,7 +545,6 @@ Rectangle {
                         color: cardSlateBg
                         border.color: borderSlate
                         radius: 10
-                        padding: 15
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -562,7 +561,7 @@ Rectangle {
                             Text {
                                 text: executorDashboardScreen.getTxt("tip_1")
                                 color: textSilver
-                                font.pixelSize: 10.5
+                                font.pixelSize: 10
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
@@ -570,7 +569,7 @@ Rectangle {
                             Text {
                                 text: executorDashboardScreen.getTxt("tip_2")
                                 color: textSilver
-                                font.pixelSize: 10.5
+                                font.pixelSize: 10
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
@@ -578,7 +577,7 @@ Rectangle {
                             Text {
                                 text: executorDashboardScreen.getTxt("tip_3")
                                 color: textSilver
-                                font.pixelSize: 10.5
+                                font.pixelSize: 10
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
