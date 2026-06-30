@@ -250,7 +250,9 @@ ApplicationWindow {
         if (typeof geminiApiKeyInput !== "undefined") {
             geminiApiKeyInput.text = backend.get_gemini_api_key()
         }
-        canvasChart.requestPaint()
+        if (typeof canvasChart !== "undefined" && canvasChart !== null) {
+            canvasChart.requestPaint()
+        }
     }
 
     function activateProject(projectName) {

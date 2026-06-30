@@ -386,7 +386,7 @@ Rectangle {
                             ColumnLayout {
                                 Layout.preferredWidth: 90
                                 spacing: 8
-                                anchors.verticalCenter: parent.verticalCenter
+                                Layout.alignment: Qt.AlignVCenter
                                 
                                 // Copy Button
                                 Button {

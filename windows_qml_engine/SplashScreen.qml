@@ -151,14 +151,16 @@ Rectangle {
                     subTitleAnim.start()
                 }
 
-                NumberAnimation {
+                SequentialAnimation {
                     id: subTitleAnim
-                    target: parent
-                    property: "opacity"
-                    to: 0.8
-                    duration: 1000
-                    delay: 400
-                    easing.type: Easing.OutQuad
+                    PauseAnimation { duration: 400 }
+                    NumberAnimation {
+                        target: parent
+                        property: "opacity"
+                        to: 0.8
+                        duration: 1000
+                        easing.type: Easing.OutQuad
+                    }
                 }
             }
         }
@@ -206,14 +208,16 @@ Rectangle {
             devAnim.start()
         }
 
-        NumberAnimation {
+        SequentialAnimation {
             id: devAnim
-            target: parent
-            property: "opacity"
-            to: 0.6
-            duration: 1200
-            delay: 1000
-            easing.type: Easing.OutQuad
+            PauseAnimation { duration: 1000 }
+            NumberAnimation {
+                target: parent
+                property: "opacity"
+                to: 0.6
+                duration: 1200
+                easing.type: Easing.OutQuad
+            }
         }
     }
 

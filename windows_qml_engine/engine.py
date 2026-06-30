@@ -792,15 +792,40 @@ class EngineBackend(QObject):
 
     def get_base_dir_for_prefix(self, prefix, project_dir):
         # Custom paths for prefixes
-        if prefix == "@builder":
+        prefix_builder = self.db.get_setting("prefix_builder", "@builder")
+        prefix_executor = self.db.get_setting("prefix_executor", "@executor")
+        prefix_treedoc = self.db.get_setting("prefix_treedoc", "@treedoc")
+
+        if prefix in ["@builder", prefix_builder]:
             custom = self.db.get_setting("path_builder", "")
-            return custom if custom and os.path.exists(custom) else project_dir
-        elif prefix == "@executor":
+            if custom:
+                try:
+                    custom_abs = os.path.normpath(custom if os.path.isabs(custom) else os.path.join(project_dir, custom))
+                    os.makedirs(custom_abs, exist_ok=True)
+                    return custom_abs
+                except Exception:
+                    pass
+            return project_dir
+        elif prefix in ["@executor", prefix_executor]:
             custom = self.db.get_setting("path_executor", "")
-            return custom if custom and os.path.exists(custom) else project_dir
-        elif prefix == "@treedoc":
+            if custom:
+                try:
+                    custom_abs = os.path.normpath(custom if os.path.isabs(custom) else os.path.join(project_dir, custom))
+                    os.makedirs(custom_abs, exist_ok=True)
+                    return custom_abs
+                except Exception:
+                    pass
+            return project_dir
+        elif prefix in ["@treedoc", prefix_treedoc]:
             custom = self.db.get_setting("path_treedoc", "")
-            return custom if custom and os.path.exists(custom) else project_dir
+            if custom:
+                try:
+                    custom_abs = os.path.normpath(custom if os.path.isabs(custom) else os.path.join(project_dir, custom))
+                    os.makedirs(custom_abs, exist_ok=True)
+                    return custom_abs
+                except Exception:
+                    pass
+            return project_dir
         return project_dir
 
     def sanitize_path(self, filepath, project_dir):
@@ -968,7 +993,9 @@ class EngineBackend(QObject):
             return False, f"خطأ في كتابة الملف {os.path.basename(filepath)}: {str(e)}"
 
     def _process_large_text_chunked(self, text, project_name):
-        parts = text.split("// @builder:file")
+        prefix_builder = self.db.get_setting("prefix_builder", "@builder")
+        
+        parts = text.split(f"// {prefix_builder}:file") if f"// {prefix_builder}:file" in text else text.split("// @builder:file")
         if len(parts) <= 1:
             self._process_text_directives_standard(text, project_name)
             return
@@ -984,9 +1011,11 @@ class EngineBackend(QObject):
                     project_dir = p["path"]
                     break
 
+        builder_dir = self.get_base_dir_for_prefix("@builder", project_dir)
+
         for i, part in enumerate(parts[1:], 1):
             self.logAdded.emit("info", f"🔄 جاري معالجة كتلة ملف {i}/{len(parts)-1}...")
-            full_part_text = "@builder:file" + part
+            full_part_text = f"{prefix_builder}:file" + part
             lines = full_part_text.splitlines()
             current_file_path = None
             current_rel_path = None
@@ -994,12 +1023,29 @@ class EngineBackend(QObject):
 
             for line in lines:
                 trimmed = line.strip()
-                if "@builder:file" in trimmed:
-                    match = re.search(r"@builder:file\s+(\S+)", trimmed)
+                
+                # Clean comments
+                cleaned_line = trimmed
+                for style in ["//", "#", "/*", "*/", "<!--", "-->", "--"]:
+                    if cleaned_line.startswith(style):
+                        cleaned_line = cleaned_line[len(style):].strip()
+                    if cleaned_line.endswith(style):
+                        cleaned_line = cleaned_line[:-len(style)].strip()
+
+                is_builder_file = f"{prefix_builder}:file" in cleaned_line or "@builder:file" in cleaned_line
+                is_builder_end = f"{prefix_builder}:end" in cleaned_line or "@builder:end" in cleaned_line
+
+                if is_builder_file:
+                    pattern = rf"(?:{re.escape(prefix_builder)}|@builder):file\s+(\S+)"
+                    match = re.search(pattern, cleaned_line)
                     if match:
                         current_rel_path = match.group(1)
-                        current_file_path = os.path.join(project_dir, current_rel_path)
-                elif "@builder:end" in trimmed:
+                        try:
+                            current_file_path = self.sanitize_path(current_rel_path, builder_dir)
+                        except ValueError as ve:
+                            errors.append(str(ve))
+                            current_file_path = None
+                elif is_builder_end:
                     if current_file_path:
                         success, msg = self._write_file_safely(current_file_path, "\n".join(current_content))
                         if success:
@@ -1081,6 +1127,46 @@ class EngineBackend(QObject):
         self.db.log_action("success", f"اكتمل تجميع المجلد {folder_path}. الملفات: {file_count}")
         self.notificationSent.emit("تجميع الحزم", f"تم تغليف وتصدير {file_count} ملفاً برمجياً.", "success")
 
+    def extract_smart_title(self, text):
+        # Look for HTML title
+        title_match = re.search(r'<title>(.*?)</title>', text, re.IGNORECASE | re.DOTALL)
+        if title_match:
+            title = title_match.group(1).strip()
+            if title:
+                return title
+        
+        # Look for HTML h1
+        h1_match = re.search(r'<h1>(.*?)</h1>', text, re.IGNORECASE | re.DOTALL)
+        if h1_match:
+            title = h1_match.group(1).strip()
+            if title:
+                return title
+                
+        # Look for Markdown h1
+        md_match = re.search(r'^#\s+(.*)', text)
+        if md_match:
+            title = md_match.group(1).strip()
+            if title:
+                return title
+                
+        # Look for the first line
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if lines:
+            first_line = lines[0]
+            # Strip any standard symbols or Markdown
+            first_line = re.sub(r'^[#*\-\s]+', '', first_line).strip()
+            if first_line:
+                return first_line[:50]
+                
+        return "مستند_غير_معنون"
+
+    def sanitize_filename(self, filename):
+        # Remove invalid characters
+        filename = re.sub(r'[\\/*?:"<>|]', "", filename)
+        # Replace spaces or dashes
+        filename = filename.replace(" ", "_")
+        return filename[:50] # Limit to 50 chars for filenames
+
     # --- Smart Capture V2 and Document Beautifier ---
     @Slot(str, str)
     def smart_capture_content_v2(self, text, theme_name):
@@ -1113,23 +1199,27 @@ class EngineBackend(QObject):
         # 2. Markdown or style beautifier
         is_markdown = trimmed.startswith("#") or "\n## " in text or "**" in text or "```" in text or "\n- " in text
         if is_markdown:
-            file_name = f"Beautified_Doc_{date_str}.html"
+            smart_title = self.extract_smart_title(trimmed)
+            safe_title = self.sanitize_filename(smart_title)
+            file_name = f"Beautified_{safe_title}_{date_str}.html"
             target_path = os.path.join(inbox_dir, file_name)
             html_content = self._convert_md_to_html_premium(trimmed, theme_name)
             with open(target_path, "w", encoding="utf-8") as f:
                 f.write(html_content)
-            self.db.add_capture("مستند مجمّل ومنسق", trimmed[:300] + "...", "markdown", target_path, theme_name)
+            self.db.add_capture(smart_title, trimmed[:300] + "...", "markdown", target_path, theme_name)
             self.captureResult.emit("markdown", file_name, target_path)
             self.logAdded.emit("success", f"🎨 تم تجميل وتنسيق مستند Markdown بأسلوب {theme_name} في {file_name}")
             self.dbUpdated.emit()
             return
 
         # 3. Raw capture
-        file_name = f"Memo_{date_str}.txt"
+        smart_title = self.extract_smart_title(trimmed)
+        safe_title = self.sanitize_filename(smart_title)
+        file_name = f"Memo_{safe_title}_{date_str}.txt"
         target_path = os.path.join(inbox_dir, file_name)
         with open(target_path, "w", encoding="utf-8") as f:
             f.write(text)
-        self.db.add_capture("مذكرة سريعة", text[:300] + "...", "raw", target_path, theme_name)
+        self.db.add_capture(smart_title, text[:300] + "...", "raw", target_path, theme_name)
         self.captureResult.emit("raw", file_name, target_path)
         self.logAdded.emit("success", f"📥 تم التقاط النص وحفظه كمذكرة سريعة: {file_name}")
         self.dbUpdated.emit()
@@ -1177,15 +1267,225 @@ class EngineBackend(QObject):
             "space": {"bg": "#05070E", "text": "#E4E9FC", "card": "#0D1127", "accent": "#FCD34D", "border": "#1E295D", "code": "#60A5FA"}
         }
         cfg = themes.get(theme, themes["space"])
-        html_lines = []
-        code_block = False
+        
+        # Academic theme specific formatting details
+        if theme == "academic":
+            academic_css = """
+/* ============================================
+   الأنماط الموحدة لجميع المقررات الدراسية
+   نسخة فائقة التوافق مع Microsoft Word
+   ============================================ */
+* {
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+body {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 16pt !important;
+  line-height: 1 !important;
+  color: #0f172a;
+  background: white;
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-weight: 600;
+  margin: 0 !important;
+  padding: 0.2em 0 !important;
+  border-bottom: none;
+  line-height: 1 !important;
+}
+h1 {
+  font-size: 20pt !important;
+  color: #0b3b5c;
+  border-left: 8px solid #d35400;
+  padding-left: 20px !important;
+  background-color: #f0f7ff;
+  border-radius: 0 8px 8px 0;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  page-break-after: avoid;
+}
+h2 {
+  font-size: 18pt !important;
+  color: #d35400;
+  border-bottom: 3px solid #0b3b5c;
+  padding-bottom: 6px !important;
+  display: inline-block;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  background: none;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 16pt !important;
+  color: #0b3b5c;
+  background-color: #f8fafc;
+  padding: 8px 15px !important;
+  border-radius: 30px 8px 8px 30px;
+  border-left: 5px solid #d35400;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  page-break-after: avoid;
+}
+strong, b {
+  color: #0b3b5c;
+  font-weight: 700;
+}
+em, i {
+  color: #d35400;
+  font-style: italic;
+}
+p {
+  line-height: 1 !important;
+  color: #0f172a;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+table {
+  direction: rtl !important;
+  border-collapse: collapse;
+  width: 100%;
+  margin: 15px 0 !important;
+  border: 1pt solid black !important;
+  border-radius: 0;
+  font-family: 'Times New Roman', Times, serif !important;
+  page-break-inside: avoid;
+}
+th, td {
+  border: 1pt solid black !important;
+  padding: 0.05cm !important;
+  text-align: start;
+  vertical-align: top;
+  line-height: 1 !important;
+  font-size: 16pt !important;
+}
+th {
+  background-color: #0b3b5c !important;
+  color: white !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+td {
+  background-color: white;
+  color: #0f172a;
+}
+tbody tr:nth-child(even) td {
+  background-color: #f8fafc !important;
+}
+ul, ol {
+  padding-left: 2rem !important;
+  margin: 10px 0 !important;
+  line-height: 1 !important;
+}
+ul li::marker {
+  color: #0b3b5c;
+  font-weight: bold;
+  font-size: 1.1em;
+}
+ol li::marker {
+  color: #d35400;
+  font-weight: bold;
+  font-size: 1.1em;
+}
+li {
+  margin: 5px 0 !important;
+  line-height: 1 !important;
+  font-size: 16pt;
+}
+.md-code-block {
+  border: 2px solid #0b3b5c;
+  border-radius: 12px;
+  margin: 15px 0 !important;
+  overflow: hidden;
+  page-break-inside: avoid;
+}
+.md-code-block-banner {
+  background-color: #0b3b5c;
+  color: white;
+  padding: 8px 16px !important;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  font-weight: 600;
+  line-height: 1;
+  font-size: 16pt;
+}
+.md-code-block pre {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  padding: 16px !important;
+  overflow-x: auto;
+  margin: 0 !important;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+hr {
+  border: none;
+  height: 3px;
+  background-color: #0b3b5c;
+  margin: 20px 0 !important;
+  border-radius: 3px;
+}
+td p, td ul, td ol {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+  font-size: 16pt;
+}
+td ul, td ol {
+  padding-left: 20px !important;
+}
+"""
+        else:
+            academic_css = ""
 
-        html_lines.append(f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>تجميل المستندات - الإصدار الذهبي للويندوز 2.0</title>
-    <style>
+        # Retrieve any custom css from settings or database
+        custom_css = self.db.get_setting("smart_capture_custom_css", "") or self.db.get_setting("custom_css", "")
+
+        # Try using markdown module
+        try:
+            import markdown
+            # Use extra extensions for tables, fenced code blocks, nl2br etc.
+            html_body = markdown.markdown(md_text, extensions=['tables', 'fenced_code', 'nl2br', 'attr_list'])
+        except Exception:
+            # Fallback simple converter
+            html_lines = []
+            code_block = False
+            for line in md_text.splitlines():
+                if line.strip().startswith("```"):
+                    code_block = not code_block
+                    if code_block:
+                        html_lines.append("<pre><code>")
+                    else:
+                        html_lines.append("</code></pre>")
+                    continue
+                if code_block:
+                    html_lines.append(line.replace("<", "&lt;").replace(">", "&gt;"))
+                    continue
+                if line.startswith("# "):
+                    html_lines.append(f"<h1>{line[2:]}</h1>")
+                elif line.startswith("## "):
+                    html_lines.append(f"<h2>{line[3:]}</h2>")
+                elif line.startswith("### "):
+                    html_lines.append(f"<h3>{line[4:]}</h3>")
+                elif line.strip().startswith("- ") or line.strip().startswith("* "):
+                    html_lines.append(f"<li>{line.strip()[2:]}</li>")
+                elif line.strip().startswith("1. "):
+                    html_lines.append(f"<li>{line.strip()[3:]}</li>")
+                elif not line.strip():
+                    html_lines.append("<br/>")
+                else:
+                    processed = re.sub(r'`([^`]+)`', r'<code>\1</code>', line)
+                    processed = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', processed)
+                    html_lines.append(f"<p>{processed}</p>")
+            html_body = "\n".join(html_lines)
+
+        # Theme CSS
+        theme_css = academic_css if theme == "academic" else f"""
         body {{
             background-color: {cfg["bg"]};
             color: {cfg["text"]};
@@ -1203,12 +1503,27 @@ class EngineBackend(QObject):
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
         }}
-        h1, h2, h3 {{
+        h1, h2, h3, h4, h5, h6 {{
             color: {cfg["accent"]};
             border-bottom: 2px solid {cfg["border"]};
             padding-bottom: 12px;
             margin-top: 35px;
             font-weight: 700;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            border: 1px solid {cfg["border"]};
+        }}
+        th, td {{
+            border: 1px solid {cfg["border"]};
+            padding: 12px;
+            text-align: right;
+        }}
+        th {{
+            background-color: {cfg["card"]};
+            color: {cfg["accent"]};
         }}
         code {{
             background-color: {cfg["card"]};
@@ -1254,52 +1569,29 @@ class EngineBackend(QObject):
             color: #64748B;
             text-align: center;
         }}
+        """
+
+        full_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>تجميل المستندات - الإصدار الذهبي للويندوز 2.0</title>
+    <style>
+        {theme_css}
+        {custom_css}
     </style>
 </head>
 <body>
     <div class="card">
         <div class="badge">الأسلوب الفني: {theme.upper()}</div>
-""")
-
-        for line in md_text.splitlines():
-            if line.strip().startswith("```"):
-                code_block = not code_block
-                if code_block:
-                    html_lines.append("<pre><code>")
-                else:
-                    html_lines.append("</code></pre>")
-                continue
-
-            if code_block:
-                html_lines.append(line.replace("<", "&lt;").replace(">", "&gt;"))
-                continue
-
-            # Parse headers
-            if line.startswith("# "):
-                html_lines.append(f"<h1>{line[2:]}</h1>")
-            elif line.startswith("## "):
-                html_lines.append(f"<h2>{line[3:]}</h2>")
-            elif line.startswith("### "):
-                html_lines.append(f"<h3>{line[4:]}</h3>")
-            elif line.strip().startswith("- ") or line.strip().startswith("* "):
-                html_lines.append(f"<li>{line.strip()[2:]}</li>")
-            elif line.strip().startswith("1. "):
-                html_lines.append(f"<li>{line.strip()[3:]}</li>")
-            elif not line.strip():
-                html_lines.append("<br/>")
-            else:
-                processed = re.sub(r'`([^`]+)`', r'<code>\1</code>', line)
-                processed = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', processed)
-                html_lines.append(f"<p>{processed}</p>")
-
-        html_lines.append(f"""
-            <div class="footer">
-                تم توليد وتجميل المستند بأسلوب {theme.upper()} الذهبي 🌲🌐
-            </div>
+        {html_body}
+        <div class="footer">
+            تم توليد وتجميل المستند بأسلوب {theme.upper()} الذهبي 🌲🌐
         </div>
-    </body>
-</html>""")
-        return "\n".join(html_lines)
+    </div>
+</body>
+</html>"""
+        return full_html
 
     # --- TreeDoc Pro Interactive Engine ---
     @Slot(str, result=str)
@@ -1839,31 +2131,77 @@ class EngineBackend(QObject):
     def process_chat_content(self, raw_input):
         if not raw_input or not raw_input.strip():
             return "النص المدخل فارغ!"
-        blocks = []
-        pattern = r"```(?:\w+)?\n(.*?)\n```"
-        matches = re.findall(pattern, raw_input, re.DOTALL)
-        if not matches:
-            matches = [raw_input]
-            
+        
+        # We split the raw_input by ``` code blocks.
+        pattern = r"(```\w*\n[\s\S]*?\n```)"
+        parts = re.split(pattern, raw_input)
+        
         output_blocks = []
-        for idx, block in enumerate(matches, 1):
-            file_match = re.search(r"(?://|#|/\*)\s*(?:File|Path|الملف):\s*(\S+)", block)
-            if file_match:
-                filepath = file_match.group(1).strip()
+        code_idx = 1
+        text_idx = 1
+        
+        for part in parts:
+            if not part:
+                continue
+            trimmed_part = part.strip()
+            if not trimmed_part:
+                continue
+                
+            # Check if this part is a code block
+            if part.startswith("```") and part.endswith("```"):
+                # Extract code content
+                lines = part.splitlines()
+                # Find the language if any
+                lang_line = lines[0][3:].strip().lower()
+                
+                # Code content is everything except the first and last line
+                code_content = "\n".join(lines[1:-1])
+                
+                # Find a file name or path if specified in comments
+                file_match = re.search(r"(?://|#|/\*)\s*(?:File|Path|الملف):\s*(\S+)", code_content)
+                if file_match:
+                    filepath = file_match.group(1).strip()
+                else:
+                    suggested_folder = self._get_context_routing_folder(f"CodeBlock_{code_idx}", code_content)
+                    ext = ".kt"
+                    if lang_line in ["python", "py"]:
+                        ext = ".py"
+                    elif lang_line in ["html", "htm"]:
+                        ext = ".html"
+                    elif lang_line in ["css"]:
+                        ext = ".css"
+                    elif lang_line in ["javascript", "js", "ts", "typescript"]:
+                        ext = ".js"
+                    elif lang_line in ["json"]:
+                        ext = ".json"
+                    elif lang_line in ["cpp", "c", "h", "hpp"]:
+                        ext = ".cpp"
+                    else:
+                        # Fallback heuristic
+                        if "import os" in code_content or "def " in code_content:
+                            ext = ".py"
+                        elif "<html>" in code_content or "<div" in code_content:
+                            ext = ".html"
+                        elif "{" in code_content and ":" in code_content and "}" in code_content:
+                            ext = ".json"
+                    filepath = f"{suggested_folder}/code_block_{code_idx}{ext}"
+                
+                output_blocks.append(f"// @builder:file {filepath}\n{code_content}\n// @builder:end\n")
+                code_idx += 1
             else:
-                suggested_folder = self._get_context_routing_folder(f"CodeBlock_{idx}", block)
-                ext = ".kt"
-                if "import os" in block or "def " in block:
-                    ext = ".py"
-                elif "<html>" in block or "<div" in block:
-                    ext = ".html"
-                elif "{" in block and ":" in block and "}" in block:
-                    ext = ".json"
-                filepath = f"{suggested_folder}/code_block_{idx}{ext}"
-            output_blocks.append(f"// @builder:file {filepath}\n{block}\n// @builder:end\n")
-        final_pack = "\n".join(output_blocks)
-        self.db.log_action("chat", f"تم استخراج وتوجيه {len(matches)} كتل برمجية من محتوى المحادثة.")
-        return final_pack
+                # This is text content!
+                theme_to_use = self.activeTheme if self.activeTheme else "academic"
+                self.smart_capture_content_v2(trimmed_part, theme_to_use)
+                text_idx += 1
+                
+        # If we have code blocks extracted as builder packages, let's join them
+        if output_blocks:
+            final_pack = "\n".join(output_blocks)
+            self.db.log_action("chat", f"تم استخراج وتوجيه {code_idx - 1} كتل برمجية ومعالجة {text_idx - 1} نصوص من محتوى المحادثة.")
+            return final_pack
+        else:
+            self.db.log_action("chat", f"تمت معالجة {text_idx - 1} نصوص بالكامل دون وجود كتل برمجية صريحة.")
+            return "✅ تمت معالجة النصوص بالكامل وتحويلها عبر الالتقاط الذكي المستقل."
 
     @Slot(str, str, str)
     def download_chat_link_async(self, url, project_name, mode):
@@ -2048,7 +2386,8 @@ class EngineBackend(QObject):
                 
                 elif mode == "capture":
                     self.linkProgress.emit(80, "جاري إرسال المحتوى إلى نظام الالتقاط الذكي...")
-                    self.smart_capture_content_v2(extracted_content, "space")
+                    theme_to_use = self.activeTheme if self.activeTheme else "academic"
+                    self.smart_capture_content_v2(extracted_content, theme_to_use)
                     
                     summary_report = "تم توجيه المحتوى المستخرج بالكامل إلى صندوق الوارد للالتقاط الذكي (Smart Inbox).\nسيتم تجميله وعرضه تلقائياً."
                     self.linkProgress.emit(100, "اكتمل الالتقاط الذكي!")
@@ -2585,14 +2924,16 @@ class EngineBackend(QObject):
                 res = self.process_chat_content(trimmed)
                 return json.dumps({"status": "chat_link", "message": "تم استخراج كتل الأكواد من الرابط تلقائياً.", "result": res})
             elif trimmed.startswith("#") or "##" in text or "```" in text or "<style>" in text:
-                self.smart_capture_content_v2(text, "space")
+                theme_to_use = self.activeTheme if self.activeTheme else "academic"
+                self.smart_capture_content_v2(text, theme_to_use)
                 return json.dumps({"status": "capture", "message": "تم توجيه النص للالتقاط الذكي والتجميل التلقائي."})
             else:
                 self.ask_gemini_async(text)
                 return json.dumps({"status": "gemini", "message": "جاري إرسال السؤال لمساعد Gemini AI."})
                 
         elif custom_mode == "smart_capture":
-            self.smart_capture_content_v2(text, "space")
+            theme_to_use = self.activeTheme if self.activeTheme else "academic"
+            self.smart_capture_content_v2(text, theme_to_use)
             return json.dumps({"status": "capture", "message": "تم توجيه النص للالتقاط والتحليل الفوري."})
         elif custom_mode == "execute_commands":
             cmd_line = trimmed.replace("@executor:", "").strip()
@@ -3524,10 +3865,12 @@ class EngineBackend(QObject):
                             executed += 1
                 return json.dumps({"success": True, "message": "executor_done", "count": executed}, ensure_ascii=False)
             elif action_id == "beautify":
-                self.smart_capture_content_v2(text, "space")
+                theme_to_use = self.activeTheme if self.activeTheme else "academic"
+                self.smart_capture_content_v2(text, theme_to_use)
                 return json.dumps({"success": True, "message": "beautified"}, ensure_ascii=False)
             elif action_id == "capture":
-                self.smart_capture_content_v2(text, "gold")
+                theme_to_use = self.activeTheme if self.activeTheme else "academic"
+                self.smart_capture_content_v2(text, theme_to_use)
                 return json.dumps({"success": True, "message": "captured"}, ensure_ascii=False)
             else:
                 return json.dumps({"success": False, "message": "unknown_action"}, ensure_ascii=False)
